@@ -9,41 +9,46 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+type UploadRecord = {
+  id: string;
+  title: string;
+  image_url: string;
+  user_id: string;
+  created_at: string;
+};
+
 export default function TestUploadPage() {
-  const [user, setUser] = useState<any>(null);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState('');
-  const [uploads, setUploads] = useState<any[]>([]);
-  const [loadingUploads, setLoadingUploads] = useState(true);
+  const [user, setUser] = useState<any>(null);
+  const [uploads, setUploads] = useState<UploadRecord[]>([]);
 
-  // Check auth state on load
+  // Check auth state on mount and listen for changes
   useEffect(() => {
-    const checkUser = async () => {
+    const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
     };
-    checkUser();
 
-    const { subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
-    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user || null);
+      }
+    );
+
+    fetchUser();
 
     return () => {
       subscription.unsubscribe();
     };
   }, []);
 
-  // Fetch user's uploads whenever user changes
+  // Fetch uploads whenever user changes
   useEffect(() => {
     const fetchUploads = async () => {
-      if (!user) {
-        setUploads([]);
-        setLoadingUploads(false);
-        return;
-      }
+      if (!user) return;
 
-      setLoadingUploads(true);
       const { data, error } = await supabase
         .from('test_uploads')
         .select('*')
@@ -52,47 +57,45 @@ export default function TestUploadPage() {
 
       if (error) {
         console.error('Fetch error:', error);
-        setMessage('❌ Failed to load uploads');
-      } else {
-        setUploads(data || []);
+        setMessage('❌ Failed to load uploads.');
+        return;
       }
-      setLoadingUploads(false);
+
+      setUploads(data || []);
     };
 
     fetchUploads();
   }, [user]);
 
   const handleLogin = async () => {
-    const email = prompt('Enter your email:');
-    if (!email) return;
+    const email = prompt('Enter admin email:');
+    const password = prompt('Enter password:');
+    if (!email || !password) {
+      setMessage('Email and password required.');
+      return;
+    }
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: typeof window !== 'undefined' ? window.location.origin + '/test-upload' : undefined,
-      },
-    });
-
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      setMessage(`Login failed: ${error.message}`);
+      setMessage('Login failed: ' + error.message);
     } else {
-      setMessage('Check your email for login link');
+      setMessage('✅ Logged in successfully.');
     }
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    setUser(null);
-    setUploads([]);
+    setMessage('✅ Logged out.');
   };
 
   const handleUpload = async () => {
     if (!file) {
-      setMessage('⚠️ Please select a file');
+      setMessage('Please select a file');
       return;
     }
+
     if (!user) {
-      setMessage('⚠️ You must be logged in to upload');
+      setMessage('You must be logged in to upload.');
       return;
     }
 
@@ -101,19 +104,15 @@ export default function TestUploadPage() {
 
     try {
       const filePath = `test-images/${user.id}/${Date.now()}_${file.name}`;
-      
-      // Upload to bucket
       const { error: uploadError } = await supabase.storage
         .from('test-images')
         .upload(filePath, file, { upsert: false });
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
       const { data } = supabase.storage.from('test-images').getPublicUrl(filePath);
       const imageUrl = data.publicUrl;
 
-      // Save to DB
       const { error: dbError } = await supabase
         .from('test_uploads')
         .insert({
@@ -124,109 +123,108 @@ export default function TestUploadPage() {
 
       if (dbError) throw dbError;
 
-      setMessage('✅ Upload successful!');
+      setMessage('✅ Success! Image uploaded and saved.');
       setFile(null);
 
-      // Refetch uploads
-      const { data: freshData } = await supabase
+      // Optional: refetch uploads immediately
+      const { data: newUploads } = await supabase
         .from('test_uploads')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
-      setUploads(freshData || []);
+      setUploads(newUploads || []);
     } catch (err: any) {
       console.error(err);
-      setMessage(`❌ Upload failed: ${err.message || 'Unknown error'}`);
+      setMessage(`❌ Upload error: ${err.message || 'Unknown error'}`);
     } finally {
       setUploading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
-      <div className="max-w-3xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Supabase Upload & Display Test</h1>
+    <div className="p-6 max-w-2xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Supabase Image Upload Test</h1>
 
-        {/* Auth Status */}
-        <div className="mb-6 p-4 bg-gray-800 rounded-lg">
-          {user ? (
-            <div>
-              <p className="text-green-400">✅ Logged in as: {user.email}</p>
-              <button
-                onClick={handleLogout}
-                className="mt-2 text-sm text-red-400 hover:underline"
-              >
-                Sign out
-              </button>
-            </div>
-          ) : (
-            <div>
-              <p className="text-red-400">❌ Not logged in</p>
-              <button
-                onClick={handleLogin}
-                className="mt-2 px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
-              >
-                Sign in with Email
-              </button>
-            </div>
-          )}
-        </div>
+      {/* Authentication Status */}
+      <div className="mb-4 p-3 bg-gray-800 text-white rounded">
+        {user ? (
+          <>
+            <p>✅ Logged in as: <strong>{user.email}</strong></p>
+            <button
+              onClick={handleLogout}
+              className="mt-2 text-sm text-red-300 hover:underline"
+            >
+              Log out
+            </button>
+          </>
+        ) : (
+          <p>❌ Not logged in</p>
+        )}
+      </div>
 
-        {/* Upload Form */}
-        <div className="mb-8 p-4 bg-gray-800 rounded-lg">
+      {/* Login Button */}
+      {!user && (
+        <button
+          onClick={handleLogin}
+          className="mb-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Login
+        </button>
+      )}
+
+      {/* Upload Form */}
+      {user && (
+        <>
           <input
             type="file"
             accept="image/*"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
-            className="mb-3"
+            className="mb-4"
           />
           <button
             onClick={handleUpload}
             disabled={uploading}
             className={`px-4 py-2 rounded ${
-              uploading ? 'bg-gray-600' : 'bg-green-600 hover:bg-green-700'
-            }`}
+              uploading ? 'bg-gray-500' : 'bg-green-600 hover:bg-green-700'
+            } text-white`}
           >
-            {uploading ? 'Uploading...' : 'Upload Image'}
+            {uploading ? 'Uploading...' : 'Upload & Save'}
           </button>
-          {message && (
-            <p className="mt-3 text-sm">
-              {message.startsWith('✅') ? (
-                <span className="text-green-400">{message}</span>
-              ) : message.startsWith('❌') ? (
-                <span className="text-red-400">{message}</span>
-              ) : (
-                <span className="text-yellow-400">{message}</span>
-              )}
-            </p>
-          )}
-        </div>
+        </>
+      )}
 
-        {/* Display Uploads */}
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Your Uploads:</h2>
-          {loadingUploads ? (
-            <p>Loading your uploads...</p>
-          ) : uploads.length === 0 ? (
-            <p className="text-gray-400">No uploads yet.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {uploads.map((upload) => (
-                <div key={upload.id} className="bg-gray-800 p-3 rounded">
-                  <img
-                    src={upload.image_url}
-                    alt={upload.title}
-                    className="w-full h-40 object-cover rounded mb-2"
-                    onError={(e) => (e.currentTarget.src = '/placeholder-image.png')}
-                  />
-                  <p className="text-sm text-gray-300 truncate">{upload.title}</p>
-                  <p className="text-xs text-gray-500">{new Date(upload.created_at).toLocaleString()}</p>
-                </div>
-              ))}
-            </div>
-          )}
+      {/* Message */}
+      {message && (
+        <p
+          className={`mt-4 p-3 rounded ${
+            message.startsWith('✅')
+              ? 'bg-green-900 text-green-200'
+              : 'bg-red-900 text-red-200'
+          }`}
+        >
+          {message}
+        </p>
+      )}
+
+      {/* Display Uploaded Images */}
+      {uploads.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-xl font-semibold mb-3">Your Uploaded Images</h2>
+          <div className="grid grid-cols-2 gap-4">
+            {uploads.map((upload) => (
+              <div key={upload.id} className="border rounded overflow-hidden">
+                <img
+                  src={upload.image_url}
+                  alt={upload.title}
+                  className="w-full h-32 object-cover"
+                  onError={(e) => (e.currentTarget.style.display = 'none')}
+                />
+                <p className="p-2 text-sm truncate">{upload.title}</p>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
