@@ -1,293 +1,218 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import Image from 'next/image';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-type UploadRecord = {
-  id: string;
-  title: string;
-  image_url: string;
-  created_at: string;
-  user_id: string;
-};
-
 export default function TestUploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [user, setUser] = useState<any>(null);
-  const [uploads, setUploads] = useState<UploadRecord[]>([]);
-  const [loadingUploads, setLoadingUploads] = useState(true);
+  const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUploads(session.user.id);
-      } else {
-        setLoadingUploads(false);
-      }
-    };
-
-    checkSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUploads(session.user.id);
-      } else {
-        setUploads([]);
-        setLoadingUploads(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const fetchUploads = async (userId: string) => {
-    setLoadingUploads(true);
-    try {
-      const { data, error } = await supabase
-        .from('test_uploads')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setUploads(data || []);
-    } catch (err: any) {
-      console.error('Error fetching uploads:', err);
-      setMessage(`❌ Failed to load uploads: ${err.message}`);
-    } finally {
-      setLoadingUploads(false);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.[0]) {
+      setFile(e.target.files[0]);
+      setError(null);
     }
-  };
-
-  const handleLogin = async () => {
-    const email = prompt('Enter admin email:');
-    const password = prompt('Enter password:');
-    
-    if (!email || !password) {
-      setMessage('Login canceled');
-      return;
-    }
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-    
-    if (error) {
-      setMessage(`Login failed: ${error.message}`);
-    } else {
-      setMessage('✅ Successfully logged in!');
-    }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUploads([]);
-    setMessage('✅ Successfully logged out');
   };
 
   const handleUpload = async () => {
     if (!file) {
-      setMessage('Please select a file');
-      return;
-    }
-
-    if (!user) {
-      setMessage('You must be logged in');
+      setError('Please select a file first');
       return;
     }
 
     setUploading(true);
-    setMessage('');
+    setError(null);
 
     try {
-      // FIXED: Removed duplicate bucket name in path
-      const filePath = `${user.id}/${Date.now()}_${file.name}`;
+      // 1. Get authenticated user
+      const { data: { session }, error: authError } = await supabase.auth.getSession();
+      if (authError || !session?.user) {
+        throw new Error('Authentication required. Please log in first.');
+      }
+      const userId = session.user.id;
+
+      // 2. Upload to storage
+      const fileName = `${userId}/${Date.now()}_${file.name}`;
       const { error: uploadError } = await supabase.storage
         .from('test-images')
-        .upload(filePath, file, { upsert: false });
+        .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage.from('test-images').getPublicUrl(filePath);
-      const imageUrl = data.publicUrl;
+      // 3. Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('test-images')
+        .getPublicUrl(fileName);
 
-      const { data: newUpload, error: dbError } = await supabase
+      // 4. Save to database
+      const { error: dbError } = await supabase
         .from('test_uploads')
         .insert({
-          title: file.name,
-          image_url: imageUrl,
-          user_id: user.id
-        })
-        .select()
-        .single();
+          user_id: userId,
+          image_path: fileName
+        });
 
       if (dbError) throw dbError;
 
-      setUploads(prev => [newUpload, ...prev]);
-      setMessage('✅ Success! Image uploaded and record saved.');
-      setFile(null);
+      // 5. Verify insertion
+      const { data: verification } = await supabase
+        .from('test_uploads')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      setResult({
+        success: true,
+        storagePath: fileName,
+        publicUrl,
+        dbRecord: verification?.[0]
+      });
+
     } catch (err: any) {
-      console.error('Upload error:', err);
-      setMessage(`❌ Error: ${err.message || 'Unknown error during upload'}`);
+      setError(`Upload failed: ${err.message || 'Unknown error'}`);
+      console.error('Full error:', err);
     } finally {
       setUploading(false);
+      setFile(null);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-xl shadow-md p-6 mb-8">
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">
-            Supabase Upload Test
+    <div className="min-h-screen bg-gray-900 text-white py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-2xl mx-auto">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent">
+            Supabase Upload Tester
           </h1>
-          <p className="text-gray-600 mb-6">
-            Test image uploads with authentication and database records
+          <p className="mt-4 text-gray-300">
+            Diagnose your RLS and storage issues with this verified workflow
           </p>
+        </div>
 
-          <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-100">
-            {user ? (
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-green-700">✅ Logged in as:</p>
-                  <p className="text-blue-600">{user.email}</p>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition"
-                >
-                  Logout
-                </button>
-              </div>
-            ) : (
-              <div>
-                <p className="font-medium text-red-600 mb-2">❌ Not logged in</p>
-                <button
-                  onClick={handleLogin}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
-                >
-                  Login to Admin Account
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="mb-8 p-5 border rounded-lg bg-gray-50">
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Image to Upload
+        <div className="bg-gray-800 rounded-xl p-6 border border-purple-900/50">
+          <div className="space-y-6">
+            {/* File Input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Select Image (PNG/JPG under 5MB)
               </label>
               <input
                 type="file"
                 accept="image/*"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                className="block w-full text-sm text-gray-500
+                onChange={handleFileChange}
+                className="w-full text-sm text-gray-400
                   file:mr-4 file:py-2 file:px-4
-                  file:rounded-full file:border-0
-                  file:text-sm file:font-semibold
-                  file:bg-blue-50 file:text-blue-700
-                  hover:file:bg-blue-100"
+                  file:rounded-md file:border-0
+                  file:text-sm file:font-medium
+                  file:bg-purple-900 file:text-purple-200
+                  hover:file:bg-purple-800"
               />
               {file && (
-                <p className="mt-2 text-sm text-gray-600">
-                  Selected: {file.name} ({(file.size / 1024).toFixed(1)} KB)
+                <p className="mt-2 text-green-400 text-sm">
+                  Selected: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
                 </p>
               )}
             </div>
 
+            {/* Upload Button */}
             <button
               onClick={handleUpload}
-              disabled={uploading || !user}
-              className={`w-full py-3 px-4 rounded-lg font-medium text-white transition ${
-                uploading
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : !user
-                  ? 'bg-yellow-400 cursor-not-allowed'
-                  : 'bg-green-600 hover:bg-green-700'
+              disabled={uploading || !file}
+              className={`w-full py-3 px-4 rounded-lg font-medium text-lg transition-all ${
+                uploading || !file
+                  ? 'bg-gray-700 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
               }`}
             >
-              {uploading
-                ? 'Uploading...'
-                : !user
-                ? 'Login Required'
-                : 'Upload & Save to Database'}
-            </button>
-          </div>
-
-          {message && (
-            <div className={`mb-6 p-4 rounded-lg ${
-              message.startsWith('✅') 
-                ? 'bg-green-50 border-green-200 text-green-700' 
-                : 'bg-red-50 border-red-200 text-red-700'
-            } border`}>
-              {message}
-            </div>
-          )}
-
-          <div>
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-              Your Uploads
-              {loadingUploads && (
-                <span className="ml-2 text-blue-500 text-sm">Loading...</span>
+              {uploading ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Uploading...
+                </span>
+              ) : (
+                'Upload & Verify'
               )}
-            </h2>
-            
-            {user && loadingUploads ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="bg-gray-200 border-2 border-dashed rounded-lg animate-pulse h-48" />
-                ))}
-              </div>
-            ) : user && uploads.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {uploads.map((upload) => (
-                  <div 
-                    key={upload.id} 
-                    className="border rounded-lg overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow"
-                  >
-                    <div className="relative h-48 w-full">
-                      {/* Fixed: Using standard img tag since domain is now configured */}
-                      <img
-                        src={upload.image_url}
-                        alt={upload.title}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="p-3">
-                      <p className="font-medium text-gray-800 truncate">{upload.title}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {new Date(upload.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : user ? (
-              <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed">
-                <p className="text-gray-500 text-lg">
-                  No uploads found. Upload your first image!
-                </p>
-              </div>
-            ) : (
-              <div className="text-center py-12 bg-blue-50 rounded-lg">
-                <p className="text-blue-600 text-lg font-medium">
-                  Login to see your uploads
-                </p>
+            </button>
+
+            {/* Results Display */}
+            {error && (
+              <div className="p-4 bg-red-900/30 border border-red-500 rounded-lg">
+                <p className="text-red-300 font-medium">{error}</p>
               </div>
             )}
+
+            {result && (
+              <div className="space-y-4 p-4 bg-green-900/20 border border-green-500 rounded-lg">
+                <h3 className="text-xl font-bold text-green-300">Success!</h3>
+                
+                <div>
+                  <p className="text-sm text-gray-400 mb-1">Storage Path:</p>
+                  <code className="block p-2 bg-gray-900 rounded text-green-300 text-sm break-all">
+                    {result.storagePath}
+                  </code>
+                </div>
+                
+                <div>
+                  <p className="text-sm text-gray-400 mb-1">Public URL:</p>
+                  <a 
+                    href={result.publicUrl} 
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:underline break-all block mb-2"
+                  >
+                    {result.publicUrl}
+                  </a>
+                  <img 
+                    src={result.publicUrl} 
+                    alt="Uploaded preview" 
+                    className="max-h-48 w-auto rounded border border-purple-500/30"
+                  />
+                </div>
+                
+                <div>
+                  <p className="text-sm text-gray-400 mb-1">Database Record:</p>
+                  <pre className="text-xs text-gray-300 p-3 bg-gray-900 rounded overflow-auto max-h-48">
+                    {JSON.stringify(result.dbRecord, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            )}
+
+            {/* Debug Info */}
+            <div className="mt-8 pt-6 border-t border-gray-700">
+              <h4 className="text-lg font-medium text-purple-400 mb-3">If Upload Fails:</h4>
+              <ul className="space-y-2 text-sm text-gray-300">
+                <li>1. Check your Supabase environment variables in <code>.env.local</code></li>
+                <li>2. Verify you're logged in to Supabase (this test requires authentication)</li>
+                <li>3. Inspect browser console for detailed error messages</li>
+                <li>4. Check RLS policies in Supabase dashboard > Authentication > Policies</li>
+                <li>5. Ensure bucket permissions match the SQL policies above</li>
+              </ul>
+            </div>
           </div>
+        </div>
+
+        {/* Verification Steps */}
+        <div className="mt-12 bg-gray-800/50 rounded-xl p-6 border border-purple-900/30">
+          <h2 className="text-2xl font-bold text-purple-300 mb-4">Verification Checklist</h2>
+          <ol className="space-y-3 text-gray-300">
+            <li>✅ <strong>Bucket exists:</strong> Go to Storage > Buckets and confirm "test-images" exists</li>
+            <li>✅ <strong>Table exists:</strong> Go to Table Editor > public > test_uploads</li>
+            <li>✅ <strong>RLS Policies:</strong> Check both table and bucket have policies matching the SQL above</li>
+            <li>✅ <strong>Auth test:</strong> Click your profile icon in Supabase dashboard - you should see your user ID</li>
+            <li>✅ <strong>Network test:</strong> Try uploading a small image (under 1MB) first</li>
+          </ol>
         </div>
       </div>
     </div>
