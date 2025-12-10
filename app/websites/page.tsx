@@ -24,7 +24,7 @@ export default function TestUploadPage() {
   const [uploads, setUploads] = useState<UploadRecord[]>([]);
   const [loadingUploads, setLoadingUploads] = useState(true);
 
-  // Fetch uploads for the current user
+  // Fetch user uploads from Supabase
   const fetchUploads = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -41,41 +41,44 @@ export default function TestUploadPage() {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Failed to fetch uploads:', error);
-      setMessage('Failed to load uploads.');
+      console.error('Fetch uploads error:', error);
+      setMessage('❌ Failed to load uploads.');
+      setUploads([]);
     } else {
       setUploads(data || []);
     }
     setLoadingUploads(false);
   };
 
-  // Refetch uploads whenever the user logs in/out or uploads
+  // Fetch on mount
   useEffect(() => {
     fetchUploads();
   }, []);
 
   const handleLogin = async () => {
+    // ⚠️ Replace with your real admin email and password in development only
     const { error } = await supabase.auth.signInWithPassword({
-      email: 'your-admin@email.com', // ⚠️ Replace with real admin email
-      password: 'your-password',     // ⚠️ Or use magic links / OAuth
+      email: 'your-admin@email.com',
+      password: 'your-password',
     });
+
     if (error) {
-      setMessage('Login failed: ' + error.message);
+      setMessage(`❌ Login failed: ${error.message}`);
     } else {
       setMessage('✅ Logged in successfully.');
-      fetchUploads(); // Refresh uploads after login
+      fetchUploads();
     }
   };
 
   const handleUpload = async () => {
     if (!file) {
-      setMessage('Please select a file');
+      setMessage('⚠️ Please select a file.');
       return;
     }
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      setMessage('You must be logged in');
+      setMessage('⚠️ You must be logged in to upload.');
       return;
     }
 
@@ -83,6 +86,7 @@ export default function TestUploadPage() {
     setMessage('');
 
     try {
+      // Upload to Supabase Storage
       const filePath = `test-images/${user.id}/${Date.now()}_${file.name}`;
       const { error: uploadError } = await supabase.storage
         .from('test-images')
@@ -90,9 +94,11 @@ export default function TestUploadPage() {
 
       if (uploadError) throw uploadError;
 
+      // Get public URL
       const { data } = supabase.storage.from('test-images').getPublicUrl(filePath);
       const imageUrl = data.publicUrl;
 
+      // Save to database
       const { error: dbError } = await supabase
         .from('test_uploads')
         .insert({
@@ -103,81 +109,93 @@ export default function TestUploadPage() {
 
       if (dbError) throw dbError;
 
-      setMessage('✅ Success! Image uploaded and record saved.');
+      setMessage('✅ Upload successful! Image saved.');
       setFile(null);
-      await fetchUploads(); // Refresh the list
+      await fetchUploads(); // Refresh list
     } catch (err: any) {
-      console.error(err);
-      setMessage(`❌ Error: ${err.message || 'Unknown error'}`);
+      console.error('Upload error:', err);
+      setMessage(`❌ Upload failed: ${err.message || 'Unknown error'}`);
     } finally {
       setUploading(false);
     }
   };
 
   return (
-    <div className="p-8 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Supabase Upload Test</h1>
-
-      <button
-        onClick={handleLogin}
-        className="mb-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-      >
-        Login (if needed)
-      </button>
+    <div className="p-6 max-w-3xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">Supabase Image Upload Test</h1>
 
       <div className="mb-6">
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
-          className="mb-2"
-        />
         <button
-          onClick={handleUpload}
-          disabled={uploading}
-          className={`px-4 py-2 rounded ${
-            uploading ? 'bg-gray-500' : 'bg-green-600 hover:bg-green-700'
-          } text-white`}
+          onClick={handleLogin}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 mb-4"
         >
-          {uploading ? 'Uploading...' : 'Upload & Save'}
+          Login (Admin)
         </button>
+
+        <div className="flex flex-col gap-3">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            className="mb-2"
+          />
+          <button
+            onClick={handleUpload}
+            disabled={uploading}
+            className={`px-4 py-2 rounded text-white ${
+              uploading
+                ? 'bg-gray-500 cursor-not-allowed'
+                : 'bg-green-600 hover:bg-green-700'
+            }`}
+          >
+            {uploading ? 'Uploading...' : 'Upload & Save'}
+          </button>
+        </div>
       </div>
 
       {message && (
-        <p
-          className={`mt-2 p-3 rounded ${
-            message.startsWith('✅') ? 'bg-green-900 text-green-200' : 'bg-red-900 text-red-200'
+        <div
+          className={`p-3 rounded mb-6 ${
+            message.startsWith('✅')
+              ? 'bg-green-900 text-green-200'
+              : message.startsWith('⚠️')
+              ? 'bg-yellow-900 text-yellow-200'
+              : 'bg-red-900 text-red-200'
           }`}
         >
           {message}
-        </p>
+        </div>
       )}
 
-      <div className="mt-8">
+      {/* Uploaded Images Section */}
+      <div>
         <h2 className="text-xl font-semibold mb-4">Your Uploaded Images</h2>
         {loadingUploads ? (
-          <p>Loading your uploads...</p>
+          <p className="text-gray-500">Loading uploads...</p>
         ) : uploads.length === 0 ? (
-          <p className="text-gray-500">No uploads yet.</p>
+          <p className="text-gray-500">No images uploaded yet.</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {uploads.map((upload) => (
               <div
                 key={upload.id}
-                className="border rounded p-3 flex flex-col items-center"
+                className="border rounded-lg overflow-hidden shadow-sm"
               >
                 <img
                   src={upload.image_url}
                   alt={upload.title}
-                  className="w-full h-32 object-cover rounded mb-2"
-                  onError={(e) => (e.currentTarget.src = '/placeholder-image.png')}
+                  className="w-full h-32 object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src =
+                      'https://via.placeholder.com/300x200?text=Image+Failed';
+                  }}
                 />
-                <p className="text-sm font-medium text-center truncate w-full">
-                  {upload.title}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {new Date(upload.created_at).toLocaleString()}
-                </p>
+                <div className="p-2">
+                  <p className="text-sm font-medium truncate">{upload.title}</p>
+                  <p className="text-xs text-gray-500">
+                    {new Date(upload.created_at).toLocaleString()}
+                  </p>
+                </div>
               </div>
             ))}
           </div>
