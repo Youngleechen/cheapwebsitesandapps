@@ -41,7 +41,7 @@ export default function TestUploadPage() {
 
       if (error) {
         console.error('Fetch error:', error);
-        setError('Failed to load images');
+        setError('Failed to load some images');
       } else {
         setImages(data || []);
       }
