@@ -18,7 +18,7 @@ function getSupabaseClient() {
 
 export default function TestUploadPage() {
   const [loading, setLoading] = useState(false);
-  const [images, setImages] = useState<{ id: string; url: string }[]>([]);
+  const [images, setImages] = useState<{ id: string; image_url: string; title?: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -36,7 +36,7 @@ export default function TestUploadPage() {
 
       const { data, error } = await supabase
         .from('test_uploads')
-        .select('id, url')
+        .select('id, image_url, title, created_at, user_id') // <-- updated columns
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -84,15 +84,30 @@ export default function TestUploadPage() {
 
       const publicUrl = publicUrlData.publicUrl;
 
-      // Save to DB
+      // Get current user ID
+      const { data: session } = await supabase.auth.getSession();
+      const userId = session.session?.user.id;
+
+      // Save to DB with correct column names
       const { error: dbError } = await supabase
         .from('test_uploads')
-        .insert({ filename, url: publicUrl });
+        .insert({
+          image_url: publicUrl, // <-- changed from "url" to "image_url"
+          title: file.name,     // optional: you can make this editable later
+          user_id: userId,      // important for RLS and ownership
+        });
 
       if (dbError) throw dbError;
 
       // Add to UI instantly
-      setImages((prev) => [{ id: filename, url: publicUrl }, ...prev]);
+      setImages((prev) => [
+        {
+          id: filename,
+          image_url: publicUrl,
+          title: file.name, // optional
+        },
+        ...prev,
+      ]);
       setSuccess('Image uploaded successfully!');
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err: any) {
@@ -147,10 +162,15 @@ export default function TestUploadPage() {
             {images.map((img) => (
               <div key={img.id} style={{ border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden' }}>
                 <img
-                  src={img.url}
-                  alt="Uploaded"
+                  src={img.image_url} // <-- updated from img.url
+                  alt={img.title || 'Uploaded image'}
                   style={{ width: '100%', height: '150px', objectFit: 'cover' }}
                 />
+                {img.title && (
+                  <div style={{ padding: '0.5rem', fontSize: '0.8rem', textAlign: 'center' }}>
+                    {img.title}
+                  </div>
+                )}
               </div>
             ))}
           </div>
