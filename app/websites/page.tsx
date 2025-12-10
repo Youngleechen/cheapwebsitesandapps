@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 
+// Initialize Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -68,6 +69,9 @@ type ArtworkData = {
   story: string;
 };
 
+// Hardcode your admin user ID here (get from Supabase auth users table)
+const ADMIN_USER_ID = "your-admin-user-id-here"; // REPLACE WITH YOUR ACTUAL USER ID
+
 export default function ArtGalleryPage() {
   const [artworks, setArtworks] = useState<{ [key: string]: ArtworkData }>({});
   const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
@@ -75,7 +79,7 @@ export default function ArtGalleryPage() {
   const [heroUploading, setHeroUploading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [adminMode, setAdminMode] = useState(true);
+  const [adminMode, setAdminMode] = useState(false); // Default to off
   const [activeArtwork, setActiveArtwork] = useState<string | null>(null);
   const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
   const galleryRef = useRef<HTMLDivElement>(null);
@@ -98,82 +102,61 @@ export default function ArtGalleryPage() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Initialize data
+  // Initialize data - now fetches globally without user filtering
   useEffect(() => {
     const init = async () => {
+      // Get current session
       const { data: { session } } = await supabase.auth.getSession();
       const uid = session?.user.id;
       setUserId(uid || null);
 
-      if (uid) {
-        // Fetch artworks
-        const { data: artworksData, error: artworksError } = await supabase
-          .from('blog_posts')
-          .select('title, image_url, content')
-          .eq('user_id', uid)
-          .in('title', ARTWORKS.map(a => a.title));
+      // Fetch all artworks globally
+      const { data: artworksData, error: artworksError } = await supabase
+        .from('gallery_artworks')
+        .select('*');
 
-        if (artworksError) {
-          console.error('Failed to fetch artworks:', artworksError);
-        } else {
-          const initialState: { [key: string]: ArtworkData } = {};
-          ARTWORKS.forEach((art) => {
-            const stored = artworksData.find((row: any) => row.title === art.title);
-            if (stored) {
-              let artist = art.artist;
-              let emotionalTags = art.emotionalTags;
-              let dimensions = art.dimensions;
-              let medium = art.medium;
-              let story = `Experience ${art.title} by ${art.artist}`;
-              
-              try {
-                const content = JSON.parse(stored.content);
-                artist = content.artist || artist;
-                emotionalTags = content.emotionalTags || emotionalTags;
-                dimensions = content.dimensions || dimensions;
-                medium = content.medium || medium;
-                story = content.story || story;
-              } catch (e) {
-                // fallback to defaults
-              }
-              
-              initialState[art.id] = {
-                image_url: stored.image_url || null,
-                artist,
-                emotionalTags,
-                dimensions,
-                medium,
-                story
-              };
-            } else {
-              initialState[art.id] = {
-                image_url: null,
-                artist: art.artist,
-                emotionalTags: art.emotionalTags,
-                dimensions: art.dimensions,
-                medium: art.medium,
-                story: `Experience ${art.title} by ${art.artist}`
-              };
-            }
-          });
-          setArtworks(initialState);
-        }
-
-        // Fetch hero image
-        const { data: heroData, error: heroError } = await supabase
-          .from('blog_posts')
-          .select('image_url')
-          .eq('user_id', uid)
-          .eq('title', 'gallery_ambiance')
-          .single();
-
-        if (!heroError || heroError.code === 'PGRST116') {
-          if (heroData) {
-            setHeroImageUrl(heroData.image_url);
+      if (artworksError) {
+        console.error('Failed to fetch artworks:', artworksError);
+      } else {
+        const initialState: { [key: string]: ArtworkData } = {};
+        ARTWORKS.forEach((art) => {
+          const stored = artworksData.find((row: any) => row.artwork_id === art.id);
+          if (stored) {
+            initialState[art.id] = {
+              image_url: stored.image_url || null,
+              artist: stored.artist || art.artist,
+              emotionalTags: stored.emotional_tags || art.emotionalTags,
+              dimensions: stored.dimensions || art.dimensions,
+              medium: stored.medium || art.medium,
+              story: stored.story || `Experience ${art.title} by ${art.artist}`
+            };
+          } else {
+            initialState[art.id] = {
+              image_url: null,
+              artist: art.artist,
+              emotionalTags: art.emotionalTags,
+              dimensions: art.dimensions,
+              medium: art.medium,
+              story: `Experience ${art.title} by ${art.artist}`
+            };
           }
-        } else {
-          console.error('Failed to fetch gallery ambiance:', heroError);
+        });
+        setArtworks(initialState);
+      }
+
+      // Fetch hero image globally
+      const { data: heroData, error: heroError } = await supabase
+        .from('gallery_settings')
+        .select('value')
+        .eq('key', 'hero_image')
+        .single();
+
+      if (!heroError || heroError.code === 'PGRST116') {
+        if (heroData) {
+          setHeroImageUrl(heroData.value);
         }
+      } else {
+        console.error('Failed to fetch gallery ambiance:', heroError);
       }
     };
 
@@ -189,11 +172,12 @@ export default function ArtGalleryPage() {
     };
   }, []);
 
-  // Upload handlers
+  // Upload handlers - now use permanent storage tables
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, artworkId: string) => {
-    if (!adminMode) return;
+    if (!adminMode || userId !== ADMIN_USER_ID) return;
+    
     const file = e.target.files?.[0];
-    if (!file || !userId) return;
+    if (!file) return;
 
     setUploading(artworkId);
     setStatus(null);
@@ -202,42 +186,33 @@ export default function ArtGalleryPage() {
       const artwork = ARTWORKS.find(a => a.id === artworkId);
       if (!artwork) throw new Error('Invalid artwork');
 
-      const filePath = `gallery/${userId}/${Date.now()}_${file.name}`;
+      // Upload to website-images bucket
+      const filePath = `gallery/${artworkId}_${Date.now()}_${file.name}`;
       const { error: uploadErr } = await supabase.storage
-        .from('blog-images')
-        .upload(filePath, file, { upsert: false });
+        .from('website-images')
+        .upload(filePath, file, { upsert: true });
 
       if (uploadErr) throw uploadErr;
 
-      const { data } = supabase.storage.from('blog-images').getPublicUrl(filePath);
+      const { data } = supabase.storage.from('website-images').getPublicUrl(filePath);
       const imageUrl = data.publicUrl;
 
-      // Save structured artwork data
-      const content = JSON.stringify({
-        artist: artworks[artworkId]?.artist || artwork.artist,
-        emotionalTags: artworks[artworkId]?.emotionalTags || artwork.emotionalTags,
-        dimensions: artworks[artworkId]?.dimensions || artwork.dimensions,
-        medium: artworks[artworkId]?.medium || artwork.medium,
-        story: artworks[artworkId]?.story || `Experience ${artwork.title} by ${artwork.artist}`
-      });
-
-      await supabase
-        .from('blog_posts')
-        .delete()
-        .eq('user_id', userId)
-        .eq('title', artwork.title);
-
-      const { error: insertErr } = await supabase
-        .from('blog_posts')
-        .insert({
-          user_id: userId,
-          title: artwork.title,
-          content,
+      // Save to permanent gallery_artworks table
+      const { error: updateErr } = await supabase
+        .from('gallery_artworks')
+        .upsert({
+          artwork_id: artworkId,
           image_url: imageUrl,
-          published: false,
+          artist: artwork.artist,
+          emotional_tags: artwork.emotionalTags,
+          dimensions: artwork.dimensions,
+          medium: artwork.medium,
+          story: `Experience ${artwork.title} by ${artwork.artist}`
+        }, {
+          onConflict: 'artwork_id'
         });
 
-      if (insertErr) throw insertErr;
+      if (updateErr) throw updateErr;
 
       setArtworks(prev => ({
         ...prev,
@@ -247,7 +222,7 @@ export default function ArtGalleryPage() {
         },
       }));
 
-      setStatus(`✨ ${artwork.title} added to collection!`);
+      setStatus(`✨ ${artwork.title} added to permanent collection!`);
       e.target.value = '';
     } catch (err: any) {
       console.error(err);
@@ -258,46 +233,40 @@ export default function ArtGalleryPage() {
   };
 
   const handleAmbianceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!adminMode) return;
+    if (!adminMode || userId !== ADMIN_USER_ID) return;
+    
     const file = e.target.files?.[0];
-    if (!file || !userId) return;
+    if (!file) return;
 
     setHeroUploading(true);
     setStatus(null);
 
     try {
-      const filePath = `gallery/${userId}/ambiance_${Date.now()}_${file.name}`;
+      // Upload to website-images bucket
+      const filePath = `gallery/hero_${Date.now()}_${file.name}`;
       const { error: uploadErr } = await supabase.storage
-        .from('blog-images')
-        .upload(filePath, file, { upsert: false });
+        .from('website-images')
+        .upload(filePath, file, { upsert: true });
 
       if (uploadErr) throw uploadErr;
 
-      const { data } = supabase.storage.from('blog-images').getPublicUrl(filePath);
+      const { data } = supabase.storage.from('website-images').getPublicUrl(filePath);
       const imageUrl = data.publicUrl;
 
-      await supabase
-        .from('blog_posts')
-        .delete()
-        .eq('user_id', userId)
-        .eq('title', 'gallery_ambiance');
-
-      const { error: insertErr } = await supabase
-        .from('blog_posts')
-        .insert({
-          user_id: userId,
-          title: 'gallery_ambiance',
-          content: JSON.stringify({ 
-            description: 'Gallery ambiance setting the mood for art discovery' 
-          }),
-          image_url: imageUrl,
-          published: false,
+      // Save to permanent settings
+      const { error: updateErr } = await supabase
+        .from('gallery_settings')
+        .upsert({
+          key: 'hero_image',
+          value: imageUrl
+        }, {
+          onConflict: 'key'
         });
 
-      if (insertErr) throw insertErr;
+      if (updateErr) throw updateErr;
 
       setHeroImageUrl(imageUrl);
-      setStatus('✨ Gallery ambiance updated!');
+      setStatus('✨ Gallery ambiance updated permanently!');
       e.target.value = '';
     } catch (err: any) {
       console.error(err);
@@ -325,6 +294,9 @@ export default function ArtGalleryPage() {
     />
   );
 
+  // Only show admin controls to the actual admin user
+  const isAdmin = userId === ADMIN_USER_ID;
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white overflow-x-hidden">
       <CursorFollower />
@@ -351,7 +323,7 @@ export default function ArtGalleryPage() {
               Artists
             </button>
             
-            {userId && (
+            {isAdmin && (
               <button
                 onClick={() => setAdminMode(!adminMode)}
                 className={`w-5 h-5 rounded-full border transition-all duration-300 ${
@@ -399,8 +371,8 @@ export default function ArtGalleryPage() {
           </motion.div>
         </div>
 
-        {/* Curator controls */}
-        {userId && adminMode && (
+        {/* Curator controls - only visible to admin in admin mode */}
+        {isAdmin && adminMode && (
           <div className="absolute bottom-8 right-8 z-30">
             <label 
               htmlFor="ambiance-upload" 
@@ -477,8 +449,8 @@ export default function ArtGalleryPage() {
                       backgroundSize: isActive ? 'cover' : '110%'
                     }}
                   >
-                    {/* Admin upload button - always visible in admin mode */}
-                    {userId && adminMode && (
+                    {/* Admin upload button - only visible to admin in admin mode */}
+                    {isAdmin && adminMode && (
                       <div className="absolute top-4 right-4 z-10">
                         <label 
                           htmlFor={`upload-${artwork.id}`}
@@ -504,7 +476,7 @@ export default function ArtGalleryPage() {
                     )}
                     
                     {/* Admin-only upload prompt */}
-                    {userId && adminMode && !data?.image_url && (
+                    {isAdmin && adminMode && !data?.image_url && (
                       <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm p-4 text-center text-purple-200 text-sm border-t border-purple-500/30">
                         <p className="font-medium">Upload suggestion:</p>
                         <p className="mt-1">{artwork.prompt}</p>
