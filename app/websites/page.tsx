@@ -69,8 +69,8 @@ type ArtworkData = {
   story: string;
 };
 
-// Hardcode your admin user ID here (get from Supabase auth users table)
-const ADMIN_USER_ID = "your-admin-user-id-here"; // REPLACE WITH YOUR ACTUAL USER ID
+// Your admin user ID
+const ADMIN_USER_ID = "680c0a2e-e92d-4c59-a2b8-3e0eed2513da";
 
 export default function ArtGalleryPage() {
   const [artworks, setArtworks] = useState<{ [key: string]: ArtworkData }>({});
@@ -120,7 +120,7 @@ export default function ArtGalleryPage() {
       } else {
         const initialState: { [key: string]: ArtworkData } = {};
         ARTWORKS.forEach((art) => {
-          const stored = artworksData.find((row: any) => row.artwork_id === art.id);
+          const stored = artworksData?.find((row: any) => row.artwork_id === art.id);
           if (stored) {
             initialState[art.id] = {
               image_url: stored.image_url || null,
