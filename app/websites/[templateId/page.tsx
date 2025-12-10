@@ -31,7 +31,7 @@ export default function WebsitePage({ params }: { params: { websiteId: string } 
         setTemplate({
           type: 'gallery',
           sections: [
-            { type: 'hero', headline: 'Welcome to ' + params.websiteId, subtitle: 'A dynamic gallery experience' },
+            { type: 'hero', headline: 'Welcome son to ' + params.websiteId, subtitle: 'A dynamic gallery experience' },
             { type: 'artwork-grid', layout: 'grid' },
             { type: 'artist-story', name: 'Curator', bio: 'This is a live demo of a data-driven template.' },
             { type: 'cta', headline: 'Ready to create your own?', buttonText: 'Get Started' }
