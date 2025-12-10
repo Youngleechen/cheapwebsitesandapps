@@ -1,7 +1,10 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { supabase } from '../../lib/supabase'; // 👈 import the instance
+import { useState } from 'react';
+import { supabase } from '../../lib/supabase';
+
+// Prevent static pre-rendering
+export const dynamic = 'force-dynamic';
 
 export default function UploadPage() {
   const [uploading, setUploading] = useState(false);
@@ -15,18 +18,16 @@ export default function UploadPage() {
     setUploading(true);
     setUploadedUrl(null);
 
-    const { data, error } = await supabase.storage
-      .from('images')
-      .upload(fileName, file);
+    const { error } = await supabase.storage.from('images').upload(fileName, file);
 
     if (error) {
       console.error('Upload error:', error);
       alert('Failed to upload image.');
     } else {
-      const { data: { publicUrl } } = supabase.storage
-        .from('images')
-        .getPublicUrl(fileName);
-      setUploadedUrl(publicUrl);
+      const { data: publicData } = supabase.storage.from('images').getPublicUrl(fileName);
+      if (publicData?.publicUrl) {
+        setUploadedUrl(publicData.publicUrl);
+      }
     }
 
     setUploading(false);
@@ -35,12 +36,7 @@ export default function UploadPage() {
   return (
     <div style={{ padding: '2rem' }}>
       <h1>Upload an Image</h1>
-      <input
-        type="file"
-        accept="image/*"
-        onChange={handleUpload}
-        disabled={uploading}
-      />
+      <input type="file" accept="image/*" onChange={handleUpload} disabled={uploading} />
       {uploading && <p>Uploading...</p>}
       {uploadedUrl && (
         <div style={{ marginTop: '1rem' }}>
