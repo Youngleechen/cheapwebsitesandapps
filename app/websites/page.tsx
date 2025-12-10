@@ -24,7 +24,7 @@ export default function TestUploadPage() {
   const [user, setUser] = useState<any>(null);
   const [uploads, setUploads] = useState<UploadRecord[]>([]);
 
-  // Check auth state on mount and listen for changes
+  // 🔒 Auth state management
   useEffect(() => {
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -39,16 +39,22 @@ export default function TestUploadPage() {
 
     fetchUser();
 
+    // 🛑 Safe cleanup
     return () => {
-      subscription.unsubscribe();
+      if (subscription) {
+        subscription.unsubscribe();
+      }
     };
   }, []);
 
-  // Fetch uploads whenever user changes
+  // 🔁 Fetch user uploads when user changes
   useEffect(() => {
-    const fetchUploads = async () => {
-      if (!user) return;
+    if (!user) {
+      setUploads([]);
+      return;
+    }
 
+    const fetchUploads = async () => {
       const { data, error } = await supabase
         .from('test_uploads')
         .select('*')
@@ -56,8 +62,8 @@ export default function TestUploadPage() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Fetch error:', error);
-        setMessage('❌ Failed to load uploads.');
+        console.error('Error fetching uploads:', error);
+        setMessage('❌ Failed to load your uploads.');
         return;
       }
 
@@ -67,30 +73,33 @@ export default function TestUploadPage() {
     fetchUploads();
   }, [user]);
 
+  // 🔑 Login
   const handleLogin = async () => {
-    const email = prompt('Enter admin email:');
-    const password = prompt('Enter password:');
+    const email = prompt('Enter your admin email:');
+    const password = prompt('Enter your password:');
     if (!email || !password) {
-      setMessage('Email and password required.');
+      setMessage('Email and password are required.');
       return;
     }
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      setMessage('Login failed: ' + error.message);
+      setMessage(`❌ Login failed: ${error.message}`);
     } else {
-      setMessage('✅ Logged in successfully.');
+      setMessage('✅ Logged in successfully!');
     }
   };
 
+  // 🚪 Logout
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setMessage('✅ Logged out.');
   };
 
+  // 📤 Upload handler
   const handleUpload = async () => {
     if (!file) {
-      setMessage('Please select a file');
+      setMessage('Please select a file.');
       return;
     }
 
@@ -123,19 +132,22 @@ export default function TestUploadPage() {
 
       if (dbError) throw dbError;
 
-      setMessage('✅ Success! Image uploaded and saved.');
+      setMessage('✅ Image uploaded and saved!');
       setFile(null);
 
-      // Optional: refetch uploads immediately
-      const { data: newUploads } = await supabase
+      // 🔄 Refetch uploads to show new image immediately
+      const { data: newUploads, error: fetchError } = await supabase
         .from('test_uploads')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
-      setUploads(newUploads || []);
+
+      if (!fetchError) {
+        setUploads(newUploads || []);
+      }
     } catch (err: any) {
       console.error(err);
-      setMessage(`❌ Upload error: ${err.message || 'Unknown error'}`);
+      setMessage(`❌ Upload failed: ${err.message || 'Unknown error'}`);
     } finally {
       setUploading(false);
     }
@@ -145,8 +157,8 @@ export default function TestUploadPage() {
     <div className="p-6 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">Supabase Image Upload Test</h1>
 
-      {/* Authentication Status */}
-      <div className="mb-4 p-3 bg-gray-800 text-white rounded">
+      {/* Auth Status */}
+      <div className="mb-5 p-3 rounded bg-gray-800 text-white">
         {user ? (
           <>
             <p>✅ Logged in as: <strong>{user.email}</strong></p>
@@ -162,7 +174,7 @@ export default function TestUploadPage() {
         )}
       </div>
 
-      {/* Login Button */}
+      {/* Login Button (if needed) */}
       {!user && (
         <button
           onClick={handleLogin}
@@ -172,28 +184,28 @@ export default function TestUploadPage() {
         </button>
       )}
 
-      {/* Upload Form */}
+      {/* Upload Section */}
       {user && (
-        <>
+        <div className="mb-6">
           <input
             type="file"
             accept="image/*"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
-            className="mb-4"
+            className="mb-3"
           />
           <button
             onClick={handleUpload}
             disabled={uploading}
-            className={`px-4 py-2 rounded ${
+            className={`px-4 py-2 rounded text-white ${
               uploading ? 'bg-gray-500' : 'bg-green-600 hover:bg-green-700'
-            } text-white`}
+            }`}
           >
             {uploading ? 'Uploading...' : 'Upload & Save'}
           </button>
-        </>
+        </div>
       )}
 
-      {/* Message */}
+      {/* Message Banner */}
       {message && (
         <p
           className={`mt-4 p-3 rounded ${
@@ -206,20 +218,20 @@ export default function TestUploadPage() {
         </p>
       )}
 
-      {/* Display Uploaded Images */}
+      {/* Uploaded Images */}
       {uploads.length > 0 && (
         <div className="mt-8">
           <h2 className="text-xl font-semibold mb-3">Your Uploaded Images</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {uploads.map((upload) => (
-              <div key={upload.id} className="border rounded overflow-hidden">
+              <div key={upload.id} className="border rounded overflow-hidden bg-gray-900">
                 <img
                   src={upload.image_url}
                   alt={upload.title}
                   className="w-full h-32 object-cover"
-                  onError={(e) => (e.currentTarget.style.display = 'none')}
+                  onError={(e) => (e.currentTarget.style.opacity = '0.5')}
                 />
-                <p className="p-2 text-sm truncate">{upload.title}</p>
+                <p className="p-2 text-xs text-white truncate">{upload.title}</p>
               </div>
             ))}
           </div>
