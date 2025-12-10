@@ -1,7 +1,6 @@
-// app/test-upload/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -9,101 +8,222 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+interface UploadRecord {
+  id: number;
+  name: string;
+  image_url: string;
+  created_at: string;
+}
+
 export default function TestUploadPage() {
   const [file, setFile] = useState<File | null>(null);
+  const [name, setName] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState('');
+  const [uploads, setUploads] = useState<UploadRecord[]>([]);
 
-  const handleLogin = async () => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email: 'your-admin@email.com', // replace with your real admin email
-      password: 'your-password'       // or use magic link if preferred
-    });
-    if (error) setMessage('Login failed: ' + error.message);
-  };
+  // Fetch existing uploads on mount
+  useEffect(() => {
+    const fetchUploads = async () => {
+      const { data, error } = await supabase
+        .from('test_uploads')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-  const handleUpload = async () => {
-    if (!file) {
-      setMessage('Please select a file');
-      return;
-    }
+      if (error) {
+        console.error('Failed to fetch uploads:', error);
+        setError('Failed to load existing uploads');
+      } else {
+        setUploads(data || []);
+      }
+    };
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setMessage('You must be logged in');
-      return;
-    }
+    fetchUploads();
+  }, []);
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file || !name) return;
 
     setUploading(true);
-    setMessage('');
+    setError(null);
 
     try {
-      // 1. Upload file to bucket
-      const filePath = `test-images/${user.id}/${Date.now()}_${file.name}`;
+      const fileName = `public/${Date.now()}_${file.name}`;
+
       const { error: uploadError } = await supabase.storage
         .from('test-images')
-        .upload(filePath, file, { upsert: false });
+        .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      // 2. Get public URL
-      const { data } = supabase.storage.from('test-images').getPublicUrl(filePath);
+      const { data } = supabase.storage
+        .from('test-images')
+        .getPublicUrl(fileName.replace('public/', ''));
+
       const imageUrl = data.publicUrl;
 
-      // 3. Insert record into table
-      const { error: dbError } = await supabase
+      const { data: inserted, error: dbError } = await supabase
         .from('test_uploads')
-        .insert({
-          title: file.name,
-          image_url: imageUrl,
-          user_id: user.id
-        });
+        .insert({ name, image_url: imageUrl })
+        .select()
+        .single();
 
       if (dbError) throw dbError;
 
-      setMessage('✅ Success! Image uploaded and record saved.');
+      // Add new upload to the top of the list
+      setUploads((prev) => [inserted, ...prev]);
+
+      setSuccess(true);
+      setName('');
       setFile(null);
+      setImageUrl(imageUrl);
     } catch (err: any) {
-      console.error(err);
-      setMessage(`❌ Error: ${err.message || 'Unknown error'}`);
+      setError(`Upload failed: ${err.message || 'Check bucket permissions'}`);
+      console.error('Upload error:', err);
     } finally {
       setUploading(false);
     }
   };
 
   return (
-    <div className="p-8 max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Supabase Upload Test</h1>
+    <div className="min-h-screen bg-gray-900 text-white py-12 px-4">
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-gray-800 p-8 rounded-xl shadow-lg mb-8">
+          <h1 className="text-2xl font-bold mb-6 text-center bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+            Test Upload (Fixed + Saved Items)
+          </h1>
 
-      <button
-        onClick={handleLogin}
-        className="mb-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-      >
-        Login (if needed)
-      </button>
+          {error && (
+            <div className="mb-4 p-3 bg-red-900/30 border border-red-500 rounded-lg text-red-300">
+              {error}
+            </div>
+          )}
 
-      <input
-        type="file"
-        accept="image/*"
-        onChange={(e) => setFile(e.target.files?.[0] || null)}
-        className="mb-4"
-      />
+          {success && (
+            <div className="mb-4 p-3 bg-green-900/30 border border-green-500 rounded-lg text-green-300">
+              Success! Image uploaded and saved to database.
+            </div>
+          )}
 
-      <button
-        onClick={handleUpload}
-        disabled={uploading}
-        className={`px-4 py-2 rounded ${
-          uploading ? 'bg-gray-500' : 'bg-green-600 hover:bg-green-700'
-        } text-white`}
-      >
-        {uploading ? 'Uploading...' : 'Upload & Save'}
-      </button>
+          <form onSubmit={handleUpload} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium mb-2">Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-4 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                placeholder="Enter a name"
+                required
+              />
+            </div>
 
-      {message && (
-        <p className={`mt-4 p-3 rounded ${message.startsWith('✅') ? 'bg-green-900 text-green-200' : 'bg-red-900 text-red-200'}`}>
-          {message}
-        </p>
-      )}
+            <div>
+              <label className="block text-sm font-medium mb-2">Image File</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                className="w-full text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-900 file:text-purple-200 hover:file:bg-purple-800"
+                required
+              />
+              {file && (
+                <p className="mt-1 text-sm text-purple-300">
+                  Selected: {file.name}
+                </p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={uploading}
+              className={`w-full py-3 rounded-lg font-medium transition-colors ${
+                uploading
+                  ? 'bg-gray-600 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
+              }`}
+            >
+              {uploading ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Uploading...
+                </span>
+              ) : (
+                'Upload Test Image'
+              )}
+            </button>
+          </form>
+
+          {imageUrl && (
+            <div className="mt-8 pt-6 border-t border-gray-700">
+              <h2 className="text-lg font-semibold mb-3">Preview:</h2>
+              <div className="border border-purple-500/30 rounded-lg overflow-hidden">
+                <img
+                  src={imageUrl}
+                  alt="Uploaded preview"
+                  className="w-full h-48 object-contain bg-gray-700"
+                  onError={(e) => {
+                    e.currentTarget.src = '';
+                    e.currentTarget.alt = 'Preview failed';
+                    setError("Preview failed! Check bucket permissions.");
+                  }}
+                />
+              </div>
+              <p className="mt-2 text-sm text-gray-400 break-all">{imageUrl}</p>
+            </div>
+          )}
+
+          <div className="mt-8 p-4 bg-purple-900/20 border border-purple-500/30 rounded-lg">
+            <h3 className="font-medium text-purple-300 mb-2">Critical Checklist</h3>
+            <ol className="list-decimal list-inside space-y-1 text-sm">
+              <li>Bucket: <code className="bg-gray-700 px-1 rounded">test-images</code> set to PUBLIC</li>
+              <li>Policy: <code className="bg-gray-700 px-1 rounded">Public read access</code> exists</li>
+              <li>File path: <code className="bg-gray-700 px-1 rounded">public/</code> prefix used</li>
+              <li>URL: <code className="bg-gray-700 px-1 rounded">getPublicUrl</code> called correctly</li>
+            </ol>
+          </div>
+        </div>
+
+        {/* Display saved uploads */}
+        {uploads.length > 0 && (
+          <div className="bg-gray-800 p-6 rounded-xl shadow-lg">
+            <h2 className="text-xl font-bold mb-4 text-center">Saved Uploads</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {uploads.map((upload) => (
+                <div key={upload.id} className="border border-gray-700 rounded-lg p-4 bg-gray-900/50">
+                  <h3 className="font-semibold text-purple-300">{upload.name}</h3>
+                  <p className="text-xs text-gray-400 mb-2">{new Date(upload.created_at).toLocaleString()}</p>
+                  <div className="mt-2 border border-gray-600 rounded overflow-hidden">
+                    <img
+                      src={upload.image_url}
+                      alt={upload.name}
+                      className="w-full h-32 object-contain bg-gray-700"
+                      onError={(e) => {
+                        e.currentTarget.src = '';
+                        e.currentTarget.alt = 'Image unavailable';
+                      }}
+                    />
+                  </div>
+                  <a
+                    href={upload.image_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-400 hover:underline mt-2 inline-block"
+                  >
+                    View full image
+                  </a>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
