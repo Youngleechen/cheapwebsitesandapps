@@ -11,7 +11,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Curated art collection with emotional descriptors and upload prompts
+// Curated art collection with defaults
 const ARTWORKS = [
   { 
     id: 'midnight-garden', 
@@ -60,7 +60,12 @@ const ARTWORKS = [
   },
 ];
 
-type ArtworkData = {
+// Admin ID
+const ADMIN_USER_ID = "680c0a2e-e92d-4c59-a2b8-3e0eed2513da";
+
+// Types
+type ArtworkItem = {
+  id: string;
   image_url: string | null;
   artist: string;
   emotionalTags: string[];
@@ -69,24 +74,28 @@ type ArtworkData = {
   story: string;
 };
 
-// Your admin user ID
-const ADMIN_USER_ID = "680c0a2e-e92d-4c59-a2b8-3e0eed2513da";
+type GalleryMeta = {
+  hero_image_url: string | null;
+  artworks: Record<string, ArtworkItem>;
+};
 
 export default function ArtGalleryPage() {
-  const [artworks, setArtworks] = useState<{ [key: string]: ArtworkData }>({});
-  const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
+  const [meta, setMeta] = useState<GalleryMeta>({
+    hero_image_url: null,
+    artworks: {}
+  });
   const [uploading, setUploading] = useState<string | null>(null);
   const [heroUploading, setHeroUploading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [adminMode, setAdminMode] = useState(false); // Default to off
+  const [adminMode, setAdminMode] = useState(false);
   const [activeArtwork, setActiveArtwork] = useState<string | null>(null);
   const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
   const galleryRef = useRef<HTMLDivElement>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const controls = useAnimation();
 
-  // Track cursor position
+  // Track cursor
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (galleryRef.current) {
@@ -97,85 +106,83 @@ export default function ArtGalleryPage() {
         });
       }
     };
-
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Initialize data - now fetches globally without user filtering
+  // Initialize data from `website_samples`
   useEffect(() => {
     const init = async () => {
-      // Get current session
       const { data: { session } } = await supabase.auth.getSession();
       const uid = session?.user.id;
       setUserId(uid || null);
 
-      // Fetch all artworks globally
-      const { data: artworksData, error: artworksError } = await supabase
-        .from('gallery_artworks')
-        .select('*');
-
-      if (artworksError) {
-        console.error('Failed to fetch artworks:', artworksError);
-      } else {
-        const initialState: { [key: string]: ArtworkData } = {};
-        ARTWORKS.forEach((art) => {
-          const stored = artworksData?.find((row: any) => row.artwork_id === art.id);
-          if (stored) {
-            initialState[art.id] = {
-              image_url: stored.image_url || null,
-              artist: stored.artist || art.artist,
-              emotionalTags: stored.emotional_tags || art.emotionalTags,
-              dimensions: stored.dimensions || art.dimensions,
-              medium: stored.medium || art.medium,
-              story: stored.story || `Experience ${art.title} by ${art.artist}`
-            };
-          } else {
-            initialState[art.id] = {
-              image_url: null,
-              artist: art.artist,
-              emotionalTags: art.emotionalTags,
-              dimensions: art.dimensions,
-              medium: art.medium,
-              story: `Experience ${art.title} by ${art.artist}`
-            };
-          }
-        });
-        setArtworks(initialState);
-      }
-
-      // Fetch hero image globally
-      const { data: heroData, error: heroError } = await supabase
-        .from('gallery_settings')
-        .select('value')
-        .eq('key', 'hero_image')
+      // Fetch this gallery sample
+      const { data: sample, error } = await supabase
+        .from('website_samples')
+        .select('meta')
+        .eq('slug', 'art-gallery')
         .single();
 
-      if (!heroError || heroError.code === 'PGRST116') {
-        if (heroData) {
-          setHeroImageUrl(heroData.value);
-        }
-      } else {
-        console.error('Failed to fetch gallery ambiance:', heroError);
+      if (error && error.code !== 'PGRST116') {
+        console.error('Fetch error:', error);
+        return;
       }
+
+      // Initialize artworks with defaults
+      const initialArtworks: Record<string, ArtworkItem> = {};
+      ARTWORKS.forEach((art) => {
+        const stored = sample?.meta?.artworks?.[art.id];
+        initialArtworks[art.id] = {
+          id: art.id,
+          image_url: stored?.image_url || null,
+          artist: stored?.artist || art.artist,
+          emotionalTags: stored?.emotionalTags || art.emotionalTags,
+          dimensions: stored?.dimensions || art.dimensions,
+          medium: stored?.medium || art.medium,
+          story: stored?.story || `Experience ${art.title} by ${art.artist}`
+        };
+      });
+
+      setMeta({
+        hero_image_url: sample?.meta?.hero_image_url || null,
+        artworks: initialArtworks
+      });
     };
 
     init();
   }, []);
 
-  // Cleanup hover timeout
+  // Cleanup
   useEffect(() => {
     return () => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-      }
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     };
   }, []);
 
-  // Upload handlers - now use permanent storage tables
+  // Save entire meta back to DB
+  const saveMeta = async (updatedMeta: GalleryMeta) => {
+    const { error } = await supabase
+      .from('website_samples')
+      .upsert({
+        slug: 'art-gallery',
+        template_type: 'art_gallery',
+        owner_id: ADMIN_USER_ID,
+        meta: updatedMeta
+      }, {
+        onConflict: 'slug'
+      });
+
+    if (error) {
+      console.error('Save failed:', error);
+      return false;
+    }
+    return true;
+  };
+
+  // Upload artwork
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, artworkId: string) => {
     if (!adminMode || userId !== ADMIN_USER_ID) return;
-    
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -183,11 +190,7 @@ export default function ArtGalleryPage() {
     setStatus(null);
 
     try {
-      const artwork = ARTWORKS.find(a => a.id === artworkId);
-      if (!artwork) throw new Error('Invalid artwork');
-
-      // Upload to website-images bucket
-      const filePath = `gallery/${artworkId}_${Date.now()}_${file.name}`;
+      const filePath = `website-images/samples/art-gallery/${artworkId}_${Date.now()}_${file.name}`;
       const { error: uploadErr } = await supabase.storage
         .from('website-images')
         .upload(filePath, file, { upsert: true });
@@ -197,32 +200,29 @@ export default function ArtGalleryPage() {
       const { data } = supabase.storage.from('website-images').getPublicUrl(filePath);
       const imageUrl = data.publicUrl;
 
-      // Save to permanent gallery_artworks table
-      const { error: updateErr } = await supabase
-        .from('gallery_artworks')
-        .upsert({
-          artwork_id: artworkId,
-          image_url: imageUrl,
-          artist: artwork.artist,
-          emotional_tags: artwork.emotionalTags,
-          dimensions: artwork.dimensions,
-          medium: artwork.medium,
-          story: `Experience ${artwork.title} by ${artwork.artist}`
-        }, {
-          onConflict: 'artwork_id'
-        });
+      // Update meta
+      const updatedArtworks = { ...meta.artworks };
+      const artDef = ARTWORKS.find(a => a.id === artworkId);
+      updatedArtworks[artworkId] = {
+        id: artworkId,
+        image_url: imageUrl,
+        artist: artDef?.artist || '',
+        emotionalTags: artDef?.emotionalTags || [],
+        dimensions: artDef?.dimensions || '',
+        medium: artDef?.medium || '',
+        story: `Experience ${artDef?.title} by ${artDef?.artist}`
+      };
 
-      if (updateErr) throw updateErr;
+      const newMeta = { ...meta, artworks: updatedArtworks };
+      const success = await saveMeta(newMeta);
+      if (success) {
+        setMeta(newMeta);
+        setStatus(`✨ ${artDef?.title} added to permanent collection!`);
+        if (activeArtwork === artworkId) setActiveArtwork(null);
+      } else {
+        throw new Error('Failed to save metadata');
+      }
 
-      setArtworks(prev => ({
-        ...prev,
-        [artworkId]: {
-          ...prev[artworkId],
-          image_url: imageUrl,
-        },
-      }));
-
-      setStatus(`✨ ${artwork.title} added to permanent collection!`);
       e.target.value = '';
     } catch (err: any) {
       console.error(err);
@@ -232,9 +232,9 @@ export default function ArtGalleryPage() {
     }
   };
 
+  // Upload hero/ambiance
   const handleAmbianceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!adminMode || userId !== ADMIN_USER_ID) return;
-    
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -242,8 +242,7 @@ export default function ArtGalleryPage() {
     setStatus(null);
 
     try {
-      // Upload to website-images bucket
-      const filePath = `gallery/hero_${Date.now()}_${file.name}`;
+      const filePath = `website-images/samples/art-gallery/hero_${Date.now()}_${file.name}`;
       const { error: uploadErr } = await supabase.storage
         .from('website-images')
         .upload(filePath, file, { upsert: true });
@@ -253,20 +252,15 @@ export default function ArtGalleryPage() {
       const { data } = supabase.storage.from('website-images').getPublicUrl(filePath);
       const imageUrl = data.publicUrl;
 
-      // Save to permanent settings
-      const { error: updateErr } = await supabase
-        .from('gallery_settings')
-        .upsert({
-          key: 'hero_image',
-          value: imageUrl
-        }, {
-          onConflict: 'key'
-        });
+      const newMeta = { ...meta, hero_image_url: imageUrl };
+      const success = await saveMeta(newMeta);
+      if (success) {
+        setMeta(newMeta);
+        setStatus('✨ Gallery ambiance updated permanently!');
+      } else {
+        throw new Error('Failed to save hero image');
+      }
 
-      if (updateErr) throw updateErr;
-
-      setHeroImageUrl(imageUrl);
-      setStatus('✨ Gallery ambiance updated permanently!');
       e.target.value = '';
     } catch (err: any) {
       console.error(err);
@@ -276,7 +270,7 @@ export default function ArtGalleryPage() {
     }
   };
 
-  // Cursor follower effect
+  // Cursor follower
   const CursorFollower = () => (
     <motion.div 
       className="fixed w-16 h-16 rounded-full bg-white/10 backdrop-blur-sm pointer-events-none z-50 border border-white/20"
@@ -294,14 +288,13 @@ export default function ArtGalleryPage() {
     />
   );
 
-  // Only show admin controls to the actual admin user
   const isAdmin = userId === ADMIN_USER_ID;
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white overflow-x-hidden">
       <CursorFollower />
       
-      {/* Immersive Header */}
+      {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-40 py-4 px-6 backdrop-blur-sm bg-black/30">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <motion.div 
@@ -336,13 +329,13 @@ export default function ArtGalleryPage() {
         </div>
       </header>
 
-      {/* Dynamic Hero */}
+      {/* Hero */}
       <div 
         ref={galleryRef}
         className="h-screen relative overflow-hidden"
         style={{
-          background: heroImageUrl 
-            ? `radial-gradient(circle at ${cursorPosition.x}% ${cursorPosition.y}%, rgba(30, 20, 50, 0.7), transparent 40%), url(${heroImageUrl})`
+          background: meta.hero_image_url 
+            ? `radial-gradient(circle at ${cursorPosition.x}% ${cursorPosition.y}%, rgba(30, 20, 50, 0.7), transparent 40%), url(${meta.hero_image_url})`
             : 'radial-gradient(circle at center, #1e1333, #0a0a1a)'
         }}
       >
@@ -371,13 +364,10 @@ export default function ArtGalleryPage() {
           </motion.div>
         </div>
 
-        {/* Curator controls - only visible to admin in admin mode */}
+        {/* Hero Upload (Admin) */}
         {isAdmin && adminMode && (
           <div className="absolute bottom-8 right-8 z-30">
-            <label 
-              htmlFor="ambiance-upload" 
-              className="group cursor-pointer relative"
-            >
+            <label htmlFor="ambiance-upload" className="group cursor-pointer relative">
               <div className="absolute inset-0 bg-gradient-to-r from-purple-900/30 to-pink-900/30 rounded-full blur-xl group-hover:opacity-100 opacity-0 transition-opacity" />
               <div className="relative bg-black/50 border border-purple-500/30 backdrop-blur-sm rounded-full px-5 py-3 flex items-center space-x-2 hover:border-purple-500/60 transition-all">
                 {heroUploading ? (
@@ -407,10 +397,9 @@ export default function ArtGalleryPage() {
         )}
       </div>
 
-      {/* Interactive Art Collection - CLICK TO EXPAND */}
+      {/* Artworks Grid */}
       <section className="py-20 px-4 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-black via-purple-900/5 to-black pointer-events-none" />
-        
         <div className="max-w-7xl mx-auto relative z-10">
           <motion.h2 
             initial={{ opacity: 0 }}
@@ -423,7 +412,7 @@ export default function ArtGalleryPage() {
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {ARTWORKS.map((artwork) => {
-              const data = artworks[artwork.id];
+              const data = meta.artworks[artwork.id];
               const isActive = activeArtwork === artwork.id;
               
               return (
@@ -449,13 +438,13 @@ export default function ArtGalleryPage() {
                       backgroundSize: isActive ? 'cover' : '110%'
                     }}
                   >
-                    {/* Admin upload button - only visible to admin in admin mode */}
+                    {/* Upload Button */}
                     {isAdmin && adminMode && (
                       <div className="absolute top-4 right-4 z-10">
                         <label 
                           htmlFor={`upload-${artwork.id}`}
                           className="block w-10 h-10 rounded-full bg-black/70 border border-purple-500/30 backdrop-blur-sm flex items-center justify-center cursor-pointer hover:bg-purple-900/30 transition-colors"
-                          onClick={(e) => e.stopPropagation()} // Prevent card click when clicking upload
+                          onClick={(e) => e.stopPropagation()}
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-purple-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -464,18 +453,14 @@ export default function ArtGalleryPage() {
                             type="file"
                             id={`upload-${artwork.id}`}
                             accept="image/*"
-                            onChange={(e) => {
-                              handleUpload(e, artwork.id);
-                              // Close expanded view after upload
-                              if (isActive) setActiveArtwork(null);
-                            }}
+                            onChange={(e) => handleUpload(e, artwork.id)}
                             className="hidden"
                           />
                         </label>
                       </div>
                     )}
                     
-                    {/* Admin-only upload prompt */}
+                    {/* Prompt (if no image) */}
                     {isAdmin && adminMode && !data?.image_url && (
                       <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm p-4 text-center text-purple-200 text-sm border-t border-purple-500/30">
                         <p className="font-medium">Upload suggestion:</p>
@@ -484,7 +469,7 @@ export default function ArtGalleryPage() {
                     )}
                   </div>
                   
-                  {/* Artwork details panel */}
+                  {/* Details Panel */}
                   <motion.div 
                     className="absolute bottom-0 left-0 right-0 backdrop-blur-xl bg-black/40 border-t border-purple-500/20 p-6 transition-all duration-500"
                     initial={{ y: '100%' }}
@@ -529,7 +514,7 @@ export default function ArtGalleryPage() {
         </div>
       </section>
 
-      {/* Artist Stories Section */}
+      {/* Artist Stories */}
       <section className="py-20 px-4 bg-gradient-to-b from-purple-900/20 to-black relative overflow-hidden">
         <div className="max-w-4xl mx-auto relative z-10">
           <motion.h2 
@@ -589,7 +574,7 @@ export default function ArtGalleryPage() {
         </div>
       </section>
 
-      {/* Immersive Footer */}
+      {/* Footer */}
       <footer className="relative pt-16 pb-8 bg-gradient-to-t from-black to-purple-900/20 overflow-hidden">
         <div className="absolute inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(139,92,246,0.1),transparent_70%)]" />
