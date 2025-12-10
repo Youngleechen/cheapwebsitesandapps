@@ -4,11 +4,19 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// ✅ Helper to safely create Supabase client only when needed
+function createSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) {
+    throw new Error(
+      'Missing environment variables: NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_ANON_KEY'
+    );
+  }
+
+  return createClient(url, anonKey);
+}
 
 export default function AuthPage() {
   const router = useRouter();
@@ -20,14 +28,16 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
 
-  // Redirect if already authenticated
+  // ✅ Check auth session after component mounts (client-only)
   useEffect(() => {
     const checkSession = async () => {
+      const supabase = createSupabaseClient();
       const { data } = await supabase.auth.getSession();
       if (data.session) {
         router.push('/portfolio');
       }
     };
+
     checkSession();
   }, [router]);
 
@@ -54,6 +64,7 @@ export default function AuthPage() {
     if (!validate()) return;
 
     setLoading(true);
+    const supabase = createSupabaseClient();
 
     try {
       if (mode === 'signup') {
@@ -70,7 +81,6 @@ export default function AuthPage() {
           text: 'Account created! Check your email for confirmation.',
         });
       } else {
-        // Sign in with email + password
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         router.push('/portfolio');
@@ -189,7 +199,7 @@ export default function AuthPage() {
         </div>
       </div>
 
-      {/* Optional: Add global styles if needed */}
+      {/* Global styles */}
       <style jsx global>{`
         body {
           margin: 0;
@@ -229,15 +239,15 @@ const styles = {
     border: '1px solid #e5e7eb',
   },
   title: {
-    fontSize: '1.875rem', // 30px
+    fontSize: '1.875rem',
     fontWeight: 700,
-    color: '#111827', // gray-900
+    color: '#111827',
     textAlign: 'center' as const,
     marginBottom: '0.5rem',
   },
   subtitle: {
     fontSize: '1rem',
-    color: '#6b7280', // gray-500
+    color: '#6b7280',
     textAlign: 'center' as const,
     marginBottom: '1.5rem',
   },
@@ -252,24 +262,24 @@ const styles = {
     gap: '0.5rem',
   },
   label: {
-    fontSize: '0.875rem', // 14px
+    fontSize: '0.875rem',
     fontWeight: 600,
-    color: '#374151', // gray-700
+    color: '#374151',
   },
   input: {
     padding: '0.75rem',
     borderRadius: '8px',
-    border: '1px solid #d1d5db', // gray-300
+    border: '1px solid #d1d5db',
     fontSize: '1rem',
     backgroundColor: 'white',
-    color: '#111827', // DARK TEXT — fixes invisible typing!
+    color: '#111827',
     transition: 'border-color 0.2s, box-shadow 0.2s',
   },
   forgotPassword: {
     alignSelf: 'flex-end',
     background: 'none',
     border: 'none',
-    color: '#3b82f6', // indigo-500
+    color: '#3b82f6',
     fontSize: '0.875rem',
     cursor: 'pointer',
     padding: 0,
@@ -281,7 +291,7 @@ const styles = {
     fontSize: '1rem',
     fontWeight: 600,
     color: 'white',
-    backgroundColor: '#3b82f6', // indigo-500
+    backgroundColor: '#3b82f6',
     border: 'none',
     cursor: 'pointer',
     transition: 'background-color 0.2s',
