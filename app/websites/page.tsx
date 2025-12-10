@@ -1,4 +1,3 @@
-// app/test-upload/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -26,7 +25,6 @@ export default function TestUploadPage() {
   const [uploads, setUploads] = useState<UploadRecord[]>([]);
   const [loadingUploads, setLoadingUploads] = useState(true);
 
-  // Check auth state on mount and set up auth listener
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -53,7 +51,6 @@ export default function TestUploadPage() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch user's uploads
   const fetchUploads = async (userId: string) => {
     setLoadingUploads(true);
     try {
@@ -115,19 +112,17 @@ export default function TestUploadPage() {
     setMessage('');
 
     try {
-      // Upload file to bucket
-      const filePath = `test-images/${user.id}/${Date.now()}_${file.name}`;
+      // FIXED: Removed duplicate bucket name in path
+      const filePath = `${user.id}/${Date.now()}_${file.name}`;
       const { error: uploadError } = await supabase.storage
         .from('test-images')
         .upload(filePath, file, { upsert: false });
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
       const { data } = supabase.storage.from('test-images').getPublicUrl(filePath);
       const imageUrl = data.publicUrl;
 
-      // Insert record into table
       const { data: newUpload, error: dbError } = await supabase
         .from('test_uploads')
         .insert({
@@ -140,7 +135,6 @@ export default function TestUploadPage() {
 
       if (dbError) throw dbError;
 
-      // Update UI
       setUploads(prev => [newUpload, ...prev]);
       setMessage('✅ Success! Image uploaded and record saved.');
       setFile(null);
@@ -163,25 +157,22 @@ export default function TestUploadPage() {
             Test image uploads with authentication and database records
           </p>
 
-          {/* Auth Status */}
           <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-100">
             {user ? (
-              <>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-green-700">✅ Logged in as:</p>
-                    <p className="text-blue-600">{user.email}</p>
-                  </div>
-                  <button
-                    onClick={handleLogout}
-                    className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition"
-                  >
-                    Logout
-                  </button>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-green-700">✅ Logged in as:</p>
+                  <p className="text-blue-600">{user.email}</p>
                 </div>
-              </>
+                <button
+                  onClick={handleLogout}
+                  className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition"
+                >
+                  Logout
+                </button>
+              </div>
             ) : (
-              <>
+              <div>
                 <p className="font-medium text-red-600 mb-2">❌ Not logged in</p>
                 <button
                   onClick={handleLogin}
@@ -189,11 +180,10 @@ export default function TestUploadPage() {
                 >
                   Login to Admin Account
                 </button>
-              </>
+              </div>
             )}
           </div>
 
-          {/* Upload Form */}
           <div className="mb-8 p-5 border rounded-lg bg-gray-50">
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -236,7 +226,6 @@ export default function TestUploadPage() {
             </button>
           </div>
 
-          {/* Status Message */}
           {message && (
             <div className={`mb-6 p-4 rounded-lg ${
               message.startsWith('✅') 
@@ -247,7 +236,6 @@ export default function TestUploadPage() {
             </div>
           )}
 
-          {/* Uploads Gallery */}
           <div>
             <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
               Your Uploads
@@ -270,12 +258,11 @@ export default function TestUploadPage() {
                     className="border rounded-lg overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow"
                   >
                     <div className="relative h-48 w-full">
-                      <Image
+                      {/* Fixed: Using standard img tag since domain is now configured */}
+                      <img
                         src={upload.image_url}
                         alt={upload.title}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        className="w-full h-full object-cover"
                       />
                     </div>
                     <div className="p-3">
