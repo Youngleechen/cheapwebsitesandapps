@@ -1,9 +1,10 @@
+// app/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Heart, Phone, MapPin, Calendar, CheckCircle, Star, ChevronRight, Users, Shield, PawPrint } from 'lucide-react';
-import Image from 'next/image';
+import { motion, AnimatePresence } from 'framer-motion';
+import { MapPin, Phone, Mail, Instagram, Leaf, Scissors, Truck } from 'lucide-react';
 
 // Supabase setup
 const supabase = createClient(
@@ -11,77 +12,48 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
-
-// Gallery items for rescue dogs
-const RESCUE_DOGS = [
+// Pet-focused gallery content
+const PET_GALLERY_ITEMS = [
   { 
-    id: 'buddy-golden', 
-    title: 'Buddy',
-    breed: 'Golden Retriever Mix',
-    age: '3 years',
-    prompt: 'A friendly golden retriever mix with soulful brown eyes sitting in a sunlit Colorado field, looking hopeful and gentle. Background should be slightly blurred with mountains in distance. Focus on the dog\'s warm, inviting expression.'
+    id: 'puppy-spa', 
+    title: 'Puppy Spa Day',
+    prompt: 'A fluffy golden retriever puppy after a professional grooming session, wearing a blue bandana, looking happy and refreshed in a bright, clean salon environment with soft natural lighting. Professional photography, high detail, warm atmosphere.'
   },
   { 
-    id: 'luna-shepherd', 
-    title: 'Luna',
-    breed: 'German Shepherd',
-    age: '2 years',
-    prompt: 'A majestic German Shepherd standing proudly in a Colorado pine forest, intelligent eyes looking at camera. Should convey strength, loyalty, and gentle nature. Professional rescue photography style.'
+    id: 'cat-comfort', 
+    title: 'Senior Cat Care',
+    prompt: 'A gentle senior cat receiving a calming grooming session from a compassionate professional, soft focus background showing a serene pet spa environment with warm wood tones and plants. Emphasis on trust and comfort, natural window lighting.'
   },
   { 
-    id: 'rocky-terrier', 
-    title: 'Rocky',
-    breed: 'Terrier Mix',
-    age: '4 years',
-    prompt: 'A playful terrier mix with scruffy fur and perky ears, mid-action catching a ball in a dog park. Show energy and joy. Bright, clean background with green grass.'
-  },
-  { 
-    id: 'bella-lab', 
-    title: 'Bella',
-    breed: 'Labrador Retriever',
-    age: '1.5 years',
-    prompt: 'A beautiful black lab puppy with shiny coat, looking up with curious, loving eyes. Sitting on a cozy blanket near a fireplace. Warm, inviting lighting.'
-  },
-  { 
-    id: 'max-husky', 
-    title: 'Max',
-    breed: 'Siberian Husky',
-    age: '5 years',
-    prompt: 'A striking blue-eyed husky in snow, looking majestic and loyal. Winter Colorado mountain scene. Should convey both beauty and resilience.'
-  },
-  { 
-    id: 'daisy-beagle', 
-    title: 'Daisy',
-    breed: 'Beagle',
-    age: '2 years',
-    prompt: 'A sweet beagle with floppy ears, sniffing flowers in a garden. Show gentle, curious nature. Springtime Denver garden setting.'
+    id: 'pet-wedding', 
+    title: 'Special Occasion Styling',
+    prompt: 'An elegant poodle with a delicate floral accessory around its neck, posed for a wedding event. Soft bokeh background showing a luxury venue, golden hour lighting, professional pet photography with shallow depth of field.'
   },
 ];
 
-type DogState = { [key: string]: { image_url: string | null } };
+type GalleryItem = { [key: string]: { image_url: string | null } };
 
-export default function CascadeCanineRescue() {
-  const [dogs, setDogs] = useState<DogState>({});
+function PetGallery() {
+  const [galleryItems, setGalleryItems] = useState<GalleryItem>({});
   const [userId, setUserId] = useState<string | null>(null);
   const [adminMode, setAdminMode] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('adopt');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
 
-  // Adoption application state
-  const [applicationOpen, setApplicationOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    dogInterest: '',
-    experience: '',
-    homeType: ''
-  });
-
+  // Check if user is admin (via auth OR dev override)
   useEffect(() => {
     const checkUser = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const forceAdmin = urlParams.get('admin') === '1';
+      
+      if (forceAdmin) {
+        setUserId(ADMIN_USER_ID);
+        setAdminMode(true);
+        return;
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       const uid = session?.user.id || null;
       setUserId(uid);
@@ -90,6 +62,7 @@ export default function CascadeCanineRescue() {
     checkUser();
   }, []);
 
+  // Load images from Supabase
   useEffect(() => {
     const loadImages = async () => {
       const { data: images } = await supabase
@@ -97,40 +70,49 @@ export default function CascadeCanineRescue() {
         .select('path')
         .eq('user_id', ADMIN_USER_ID);
 
-      const initialState: DogState = {};
-      RESCUE_DOGS.forEach(dog => initialState[dog.id] = { image_url: null });
+      const initialState: GalleryItem = {};
+      PET_GALLERY_ITEMS.forEach(item => initialState[item.id] = { image_url: null });
 
       if (images) {
-        RESCUE_DOGS.forEach(dog => {
-          const match = images.find(img => img.path.includes(`/${dog.id}/`));
+        PET_GALLERY_ITEMS.forEach(item => {
+          const match = images.find(img => img.path.includes(`/${item.id}/`));
           if (match) {
             const url = supabase.storage
               .from('user_images')
               .getPublicUrl(match.path).data.publicUrl;
-            initialState[dog.id] = { image_url: url };
+            initialState[item.id] = { image_url: url };
           }
         });
       }
 
-      setDogs(initialState);
+      setGalleryItems(initialState);
     };
 
     loadImages();
   }, []);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, dogId: string) => {
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, itemId: string) => {
     if (!adminMode) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setUploading(dogId);
+    setUploading(itemId);
+    setUploadError(null);
+
     try {
-      const filePath = `${ADMIN_USER_ID}/${dogId}/${Date.now()}_${file.name}`;
+      const filePath = `${ADMIN_USER_ID}/${itemId}/${Date.now()}_${file.name}`;
       
       const { error: uploadErr } = await supabase.storage
         .from('user_images')
         .upload(filePath, file, { upsert: true });
       if (uploadErr) throw uploadErr;
+
+      // Upsert: delete old path if exists, then insert new
+      await supabase
+        .from('images')
+        .delete()
+        .eq('user_id', ADMIN_USER_ID)
+        .like('path', `%/${itemId}/%`);
 
       const { error: dbErr } = await supabase
         .from('images')
@@ -138,314 +120,636 @@ export default function CascadeCanineRescue() {
       if (dbErr) throw dbErr;
 
       const publicUrl = supabase.storage.from('user_images').getPublicUrl(filePath).data.publicUrl;
-      setDogs(prev => ({ ...prev, [dogId]: { image_url: publicUrl } }));
-    } catch (err) {
+      setGalleryItems(prev => ({ ...prev, [itemId]: { image_url: publicUrl } }));
+    } catch (err: any) {
       console.error('Upload failed:', err);
+      setUploadError(err.message || 'Upload failed. Please try again.');
     } finally {
       setUploading(null);
       e.target.value = '';
     }
   };
 
-  const copyPrompt = (prompt: string, dogId: string) => {
+  const copyPrompt = (prompt: string, itemId: string) => {
     navigator.clipboard.writeText(prompt).then(() => {
-      setCopiedId(dogId);
+      setCopiedId(itemId);
       setTimeout(() => setCopiedId(null), 2000);
     });
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  return (
+    <section className="py-16 bg-gradient-to-b from-amber-50/30 to-white relative overflow-hidden">
+      <div className="absolute inset-0 bg-[url('/floral-pattern.svg')] bg-repeat opacity-5" />
+      
+      <div className="container mx-auto px-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-12 max-w-3xl mx-auto"
+        >
+          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+            Our Happy Tails Gallery
+          </h2>
+          <p className="text-lg text-gray-600">
+            See the transformations and joyful moments we create for Seattle's beloved pets
+          </p>
+        </motion.div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {PET_GALLERY_ITEMS.map((item) => {
+            const imageUrl = galleryItems[item.id]?.image_url;
+
+            return (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.1 * PET_GALLERY_ITEMS.indexOf(item) }}
+                className="bg-white rounded-2xl overflow-hidden shadow-xl border border-amber-100 hover:shadow-2xl transition-shadow duration-300"
+              >
+                <div className="h-64 overflow-hidden">
+                  {imageUrl ? (
+                    <img 
+                      src={imageUrl} 
+                      alt={item.title} 
+                      className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-amber-50 to-rose-50 flex items-center justify-center">
+                      <Leaf className="w-16 h-16 text-amber-300" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-5">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">{item.title}</h3>
+                  
+                  {/* Only show prompt in admin mode */}
+                  {adminMode && (
+                    <div className="mt-2 text-xs text-gray-600 bg-amber-50 p-2 rounded border border-amber-200">
+                      <strong>Prompt:</strong> {item.prompt}
+                    </div>
+                  )}
+
+                  {!imageUrl && !adminMode && (
+                    <p className="text-gray-600 italic text-sm mt-2">
+                      Image coming soon — check back next week!
+                    </p>
+                  )}
+                </div>
+
+                {adminMode && (
+                  <div className="p-4 border-t border-amber-100 bg-amber-50/50">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <button
+                        onClick={() => copyPrompt(item.prompt, item.id)}
+                        className="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-md transition-colors flex items-center"
+                        type="button"
+                      >
+                        {copiedId === item.id ? (
+                          <span className="flex items-center">
+                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Copied!
+                          </span>
+                        ) : (
+                          'Copy Prompt'
+                        )}
+                      </button>
+                      
+                      <label className="block text-sm bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-md cursor-pointer transition-colors text-center whitespace-nowrap">
+                        {uploading === item.id ? 'Uploading…' : 'Upload Photo'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleUpload(e, item.id)}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+
+                    {uploadError && (
+                      <p className="text-red-600 text-xs mt-2">{uploadError}</p>
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
+
+        {adminMode && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="mt-8 p-4 bg-amber-100 border border-amber-300 rounded-xl text-center max-w-2xl mx-auto"
+          >
+            <p className="text-amber-800 font-medium">
+              👤 Admin Mode: Upload client transformation photos using the buttons below.
+              Prompts are shown for reference (e.g., for AI generation).
+            </p>
+          </motion.div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+export default function Home() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [formData, setFormData] = useState({ name: '', email: '', service: '', message: '' });
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In production, this would submit to your backend
-    alert('Thank you for your application! We\'ll contact you within 24 hours.');
-    setApplicationOpen(false);
-    setFormData({ name: '', email: '', phone: '', dogInterest: '', experience: '', homeType: '' });
+    setSubmitStatus('submitting');
+    
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setSubmitStatus('success');
+      setFormData({ name: '', email: '', service: '', message: '' });
+      setTimeout(() => setSubmitStatus('idle'), 3000);
+    } catch (error) {
+      setSubmitStatus('error');
+    }
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Admin Banner */}
-      {adminMode && (
-        <div className="bg-purple-900 text-white p-2 text-center text-sm">
-          👤 Admin Mode Active — You can upload dog photos and copy image prompts
-        </div>
-      )}
-
+    <div className="font-sans bg-white text-gray-800 overflow-x-hidden">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-2">
-              <div className="bg-amber-500 p-2 rounded-full">
-                <PawPrint className="w-6 h-6 text-white" />
+      <header className="fixed w-full bg-white/90 backdrop-blur-md z-50 shadow-sm">
+        <div className="container mx-auto px-4">
+          <div className="flex justify-between items-center py-4">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex items-center space-x-2"
+            >
+              <div className="bg-amber-100 p-2 rounded-full">
+                <Leaf className="w-8 h-8 text-rose-500" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Cascade Canine Rescue</h1>
-                <p className="text-sm text-gray-600">Denver, Colorado</p>
+                <h1 className="text-xl md:text-2xl font-bold text-gray-900">Bella's Blooms</h1>
+                <p className="text-xs text-amber-700 font-medium">Seattle's Premier Pet Grooming Studio</p>
               </div>
-            </div>
-            
-            <div className="hidden md:flex space-x-8">
-              <a href="#dogs" className="text-gray-700 hover:text-amber-600 font-medium">Meet Our Dogs</a>
-              <a href="#process" className="text-gray-700 hover:text-amber-600 font-medium">Adoption Process</a>
-              <a href="#about" className="text-gray-700 hover:text-amber-600 font-medium">Our Mission</a>
-              <a href="#donate" className="text-gray-700 hover:text-amber-600 font-medium">Donate</a>
-            </div>
-            
+            </motion.div>
+
             <button 
-              onClick={() => setApplicationOpen(true)}
-              className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-full font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 hover:bg-gray-100 rounded-lg"
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             >
-              Apply to Adopt
+              {mobileMenuOpen ? (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
             </button>
+
+            <nav className="hidden md:block">
+              <ul className="flex space-x-8">
+                {['Services', 'Gallery', 'About', 'Contact'].map((item) => (
+                  <li key={item}>
+                    <a 
+                      href={`#${item.toLowerCase()}`} 
+                      className="font-medium hover:text-rose-500 transition-colors py-2 relative group"
+                    >
+                      {item}
+                      <span className="absolute bottom-0 left-0 w-full h-0.5 bg-rose-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
           </div>
         </div>
-      </nav>
+
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="md:hidden bg-white border-t"
+            >
+              <div className="container mx-auto px-4 py-4">
+                <ul className="space-y-4">
+                  {['Services', 'Gallery', 'About', 'Contact'].map((item) => (
+                    <li key={item}>
+                      <a 
+                        href={`#${item.toLowerCase()}`} 
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="block py-2 font-medium text-lg hover:text-rose-500 transition-colors"
+                      >
+                        {item}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </header>
 
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-r from-amber-50 to-amber-100 overflow-hidden">
-        <div className="container mx-auto px-4 py-20 md:py-28">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center space-x-2 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full mb-6">
-              <Star className="w-4 h-4 text-amber-500" />
-              <span className="text-sm font-semibold">501(c)(3) Nonprofit Organization</span>
-            </div>
-            
-            <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-              Giving <span className="text-amber-500">Colorado Dogs</span> Their Forever Homes
-            </h1>
-            
-            <p className="text-xl text-gray-700 mb-8 max-w-2xl">
-              Since 2015, we've rescued and rehomed over 2,500 dogs in the Denver area. 
-              Each dog receives medical care, training, and endless love before finding their perfect family.
-            </p>
-            
-            <div className="flex flex-wrap gap-4">
-              <button 
-                onClick={() => setApplicationOpen(true)}
-                className="bg-amber-500 hover:bg-amber-600 text-white px-8 py-4 rounded-full font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 flex items-center"
-              >
-                Meet Our Dogs <ChevronRight className="ml-2 w-5 h-5" />
-              </button>
-              <a 
-                href="#donate"
-                className="bg-white hover:bg-gray-50 text-gray-900 border-2 border-amber-500 px-8 py-4 rounded-full font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300"
-              >
-                Support Our Mission
-              </a>
-            </div>
-          </div>
-        </div>
-        
-        {/* Decorative elements */}
-        <div className="absolute top-10 right-10 w-64 h-64 bg-amber-200 rounded-full opacity-20"></div>
-        <div className="absolute bottom-10 right-1/3 w-32 h-32 bg-amber-300 rounded-full opacity-30"></div>
-      </section>
-
-      {/* Stats Bar */}
-      <div className="bg-amber-500 text-white">
-        <div className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <div className="text-center">
-              <div className="text-4xl font-bold mb-2">2,500+</div>
-              <div className="text-amber-100">Dogs Rescued</div>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold mb-2">98%</div>
-              <div className="text-amber-100">Adoption Success Rate</div>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold mb-2">24/7</div>
-              <div className="text-amber-100">Emergency Rescue</div>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold mb-2">150+</div>
-              <div className="text-amber-100">Active Volunteers</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Gallery Section */}
-      <section id="dogs" className="py-20 bg-gray-50">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Meet Our Rescue Dogs</h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Each of these wonderful dogs is waiting for their forever home. 
-              All are spayed/neutered, vaccinated, and ready for adoption.
-            </p>
-          </div>
-
-          {/* Tab Navigation */}
-          <div className="flex justify-center mb-12">
-            <div className="inline-flex rounded-full bg-white p-1 shadow-md">
-              <button
-                onClick={() => setActiveTab('adopt')}
-                className={`px-8 py-3 rounded-full font-medium transition-all ${activeTab === 'adopt' ? 'bg-amber-500 text-white' : 'text-gray-700'}`}
-              >
-                Available for Adoption
-              </button>
-              <button
-                onClick={() => setActiveTab('foster')}
-                className={`px-8 py-3 rounded-full font-medium transition-all ${activeTab === 'foster' ? 'bg-amber-500 text-white' : 'text-gray-700'}`}
-              >
-                Need Foster Homes
-              </button>
-            </div>
-          </div>
-
-          {/* Dogs Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {RESCUE_DOGS.map((dog) => {
-              const imageUrl = dogs[dog.id]?.image_url;
-
-              return (
-                <div key={dog.id} className="bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1">
-                  {/* Dog Image */}
-                  <div className="relative h-80 bg-gray-100">
-                    {imageUrl ? (
-                      <img 
-                        src={imageUrl} 
-                        alt={dog.title}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-amber-50 to-amber-100">
-                        <PawPrint className="w-16 h-16 text-amber-300 mb-4" />
-                        <span className="text-gray-400">Awaiting photo</span>
-                        
-                        {/* Admin Upload Section */}
-                        {adminMode && (
-                          <div className="mt-4 p-4 bg-white/80 backdrop-blur-sm rounded-lg">
-                            <p className="text-xs text-purple-700 mb-2">Image prompt for AI generation:</p>
-                            <div className="flex items-start gap-2">
-                              <p className="text-xs text-gray-600 flex-1">{dog.prompt}</p>
-                              <button
-                                onClick={() => copyPrompt(dog.prompt, dog.id)}
-                                className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-1 rounded-lg transition-colors"
-                                type="button"
-                              >
-                                {copiedId === dog.id ? '✓ Copied' : 'Copy Prompt'}
-                              </button>
-                            </div>
-                            <label className="block mt-3 text-sm bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg cursor-pointer transition-colors text-center">
-                              {uploading === dog.id ? 'Uploading…' : 'Upload Photo'}
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => handleUpload(e, dog.id)}
-                                className="hidden"
-                              />
-                            </label>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* Available Badge */}
-                    <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold">
-                      Available
-                    </div>
-                  </div>
-                  
-                  {/* Dog Info */}
-                  <div className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-2xl font-bold text-gray-900">{dog.title}</h3>
-                        <p className="text-gray-600">{dog.breed} • {dog.age} old</p>
-                      </div>
-                      <Heart className="w-6 h-6 text-amber-400 cursor-pointer hover:text-amber-500" />
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4 mb-6">
-                      <div className="flex items-center space-x-2">
-                        <CheckCircle className="w-5 h-5 text-green-500" />
-                        <span className="text-sm text-gray-700">Spayed/Neutered</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <CheckCircle className="w-5 h-5 text-green-500" />
-                        <span className="text-sm text-gray-700">Vaccinated</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <CheckCircle className="w-5 h-5 text-green-500" />
-                        <span className="text-sm text-gray-700">House Trained</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <CheckCircle className="w-5 h-5 text-green-500" />
-                        <span className="text-sm text-gray-700">Good with Kids</span>
-                      </div>
-                    </div>
-                    
-                    <button 
-                      onClick={() => {
-                        setFormData(prev => ({...prev, dogInterest: dog.title}));
-                        setApplicationOpen(true);
-                      }}
-                      className="w-full bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-lg font-semibold transition-colors"
-                    >
-                      Apply to Adopt {dog.title}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* View More */}
-          <div className="text-center mt-12">
-            <button className="inline-flex items-center text-amber-600 hover:text-amber-700 font-semibold text-lg">
-              View All Available Dogs <ChevronRight className="ml-2 w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* Adoption Process */}
-      <section id="process" className="py-20 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Our Adoption Process</h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              We ensure every dog finds the perfect home through our thorough, caring process
-            </p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            {[
-              { step: '01', title: 'Apply Online', desc: 'Complete our adoption application' },
-              { step: '02', title: 'Meet & Greet', desc: 'Schedule a meeting with your chosen dog' },
-              { step: '03', title: 'Home Visit', desc: 'We ensure your home is ready for a new member' },
-              { step: '04', title: 'Finalize Adoption', desc: 'Sign paperwork and bring your new family member home' },
-            ].map((item, index) => (
-              <div key={index} className="text-center p-6">
-                <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <span className="text-3xl font-bold text-amber-600">{item.step}</span>
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">{item.title}</h3>
-                <p className="text-gray-600">{item.desc}</p>
+      <section className="pt-32 pb-20 md:pb-32 bg-gradient-to-br from-rose-50 to-amber-50 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('/pawprint-pattern.svg')] bg-repeat opacity-3" />
+        <div className="container mx-auto px-4 relative z-10">
+          <div className="flex flex-col md:flex-row items-center">
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
+              className="md:w-1/2 mb-12 md:mb-0"
+            >
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+                Seattle's Most <span className="text-rose-500">Loved</span> Pet Grooming Experience
+              </h1>
+              <p className="text-xl text-gray-600 mb-8 max-w-lg">
+                Luxury grooming services that prioritize your pet's comfort and wellbeing in a stress-free environment
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <a 
+                  href="#contact" 
+                  className="bg-rose-500 hover:bg-rose-600 text-white font-bold py-4 px-8 rounded-xl text-lg shadow-lg transition-all transform hover:scale-105"
+                >
+                  Book Appointment
+                </a>
+                <a 
+                  href="#gallery" 
+                  className="bg-white border-2 border-rose-200 text-rose-700 font-medium py-4 px-8 rounded-xl text-lg hover:bg-rose-50 transition-colors"
+                >
+                  View Transformations
+                </a>
               </div>
+              <div className="mt-10 flex items-center space-x-6">
+                <div className="flex -space-x-2">
+                  {[1,2,3,4].map((i) => (
+                    <div key={i} className="w-10 h-10 rounded-full bg-gradient-to-br from-rose-300 to-amber-300 border-2 border-white"></div>
+                  ))}
+                </div>
+                <div>
+                  <p className="font-bold">1,200+ Happy Pets</p>
+                  <p className="text-gray-500 text-sm">Served in Seattle area</p>
+                </div>
+              </div>
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="md:w-1/2 flex justify-center"
+            >
+              <div className="relative">
+                <div className="absolute -inset-4 bg-gradient-to-r from-rose-200 to-amber-200 rounded-3xl blur-xl opacity-70 animate-pulse"></div>
+                <div className="relative bg-gradient-to-br from-rose-50 to-amber-50 rounded-3xl p-4 shadow-2xl overflow-hidden">
+                  <div className="bg-white rounded-2xl overflow-hidden shadow-xl">
+                    <img 
+                      src="https://images.unsplash.com/photo-1583337130417-3346a1be7dee?auto=format&fit=crop&w=600&q=80" 
+                      alt="Happy golden retriever after grooming" 
+                      className="w-full h-auto aspect-square object-cover"
+                    />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* Services Section */}
+      <section id="services" className="py-20 bg-white">
+        <div className="container mx-auto px-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16 max-w-3xl mx-auto"
+          >
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              Our Signature <span className="text-rose-500">Services</span>
+            </h2>
+            <p className="text-xl text-gray-600">
+              Every service includes our signature comfort care protocol designed by veterinary behaviorists
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {[{
+              icon: Scissors,
+              title: "Luxury Spa Bath",
+              description: "Hypoallergenic shampoos, blueberry facials, and pawdicures in our serene hydrotherapy tubs",
+              price: "$65+"
+            }, {
+              icon: Leaf,
+              title: "Holistic Wellness",
+              description: "Stress-free grooming with calming pheromones, gentle handling techniques, and anxiety-reducing environments",
+              price: "$85+"
+            }, {
+              icon: Truck,
+              title: "Mobile Grooming",
+              description: "Our fully-equipped luxury van comes to your home for pets with mobility issues or severe anxiety",
+              price: "$120+"
+            }].map((service, index) => (
+              <motion.div
+                key={service.title}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.1 * index }}
+                className="bg-gradient-to-br from-amber-50 to-rose-50/5 border border-amber-100 rounded-2xl p-8 hover:shadow-xl transition-shadow duration-300"
+              >
+                <div className="w-16 h-16 bg-rose-100 rounded-2xl flex items-center justify-center mb-6">
+                  <service.icon className="w-8 h-8 text-rose-500" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">{service.title}</h3>
+                <p className="text-gray-600 mb-4">{service.description}</p>
+                <div className="flex justify-between items-center">
+                  <span className="text-2xl font-bold text-rose-600">{service.price}</span>
+                  <span className="text-xs bg-rose-100 text-rose-700 px-3 py-1 rounded-full font-medium">Most Popular</span>
+                </div>
+              </motion.div>
             ))}
           </div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="mt-16 text-center"
+          >
+            <a 
+              href="#contact" 
+              className="inline-flex items-center bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 px-8 rounded-xl text-lg shadow-md transition-all"
+            >
+              View Full Service Menu
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </a>
+          </motion.div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-amber-500 to-amber-600">
+      {/* Gallery Section */}
+      <section id="gallery">
+        <PetGallery />
+      </section>
+
+      {/* Testimonials */}
+      <section id="about" className="py-20 bg-gradient-to-b from-amber-50 to-white">
         <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto text-center text-white">
-            <Users className="w-16 h-16 mx-auto mb-6" />
-            <h2 className="text-4xl font-bold mb-6">Ready to Welcome a New Family Member?</h2>
-            <p className="text-xl mb-8 opacity-90">
-              Every adoption saves two lives: the dog you bring home, and the one who can now take their place in our rescue.
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16 max-w-3xl mx-auto"
+          >
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              Why Seattle Pet Parents <span className="text-rose-500">Trust Us</span>
+            </h2>
+            <p className="text-xl text-gray-600">
+              Hear from our community of happy pet parents and their well-groomed companions
             </p>
-            <button 
-              onClick={() => setApplicationOpen(true)}
-              className="bg-white text-amber-600 hover:bg-gray-100 px-10 py-4 rounded-full font-semibold text-lg shadow-2xl hover:shadow-3xl transition-all duration-300"
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[{
+              name: "Sarah J.",
+              location: "Capitol Hill",
+              pet: "Luna (Golden Retriever)",
+              quote: "Bella transformed Luna's anxiety around grooming. Now she actually wags her tail when we pull up! The hydrotherapy tub was a game-changer for her sensitive skin."
+            }, {
+              name: "Michael T.",
+              location: "Ballard",
+              pet: "Mittens (Senior Cat)",
+              quote: "After trying 3 other groomers who couldn't handle Mittens' arthritis, Bella's gentle approach made all the difference. They took 2 hours just to make her comfortable before starting."
+            }, {
+              name: "Priya K.",
+              location: "Queen Anne",
+              pet: "Rocky (Rescue Pitbull)",
+              quote: "The mobile grooming service saved us during Rocky's recovery from surgery. Bella handled his special needs with such care - they even brought calming music and his favorite treat!"
+            }].map((testimonial, index) => (
+              <motion.div
+                key={testimonial.name}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.1 * index }}
+                className="bg-white p-8 rounded-2xl shadow-md border border-amber-100 hover:shadow-xl transition-shadow"
+              >
+                <div className="flex items-center mb-4">
+                  {[...Array(5)].map((_, i) => (
+                    <svg key={i} className="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  ))}
+                </div>
+                <p className="text-gray-600 italic mb-4">"{testimonial.quote}"</p>
+                <div>
+                  <p className="font-bold text-gray-900">{testimonial.name}</p>
+                  <p className="text-rose-500">{testimonial.location}</p>
+                  <p className="text-gray-500 text-sm">{testimonial.pet}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="mt-16 flex flex-col md:flex-row items-center justify-center gap-8"
+          >
+            <div className="text-center md:text-left">
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">Meet Our Lead Groomer</h3>
+              <p className="text-lg text-gray-600 mb-4">
+                Bella Rodriguez, CPG (Certified Professional Groomer) with 12+ years experience specializing in anxious and special needs pets
+              </p>
+              <div className="flex flex-wrap gap-3 justify-center md:justify-start">
+                <a href="#" className="bg-rose-500 hover:bg-rose-600 text-white font-medium py-2 px-6 rounded-lg transition-colors">About Our Studio</a>
+                <a href="#" className="bg-white border border-rose-200 text-rose-700 font-medium py-2 px-6 rounded-lg hover:bg-rose-50 transition-colors">Our Certifications</a>
+              </div>
+            </div>
+            <div className="relative w-48 h-48 rounded-full overflow-hidden border-4 border-white shadow-xl">
+              <img 
+                src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80" 
+                alt="Bella Rodriguez, lead groomer" 
+                className="w-full h-full object-cover"
+              />
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Contact Section */}
+      <section id="contact" className="py-20 bg-gradient-to-br from-rose-50 to-amber-50">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="space-y-8"
             >
-              Start Your Adoption Journey Today
-            </button>
+              <div>
+                <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+                  Ready for a <span className="text-rose-500">Pampered Pooch</span>?
+                </h2>
+                <p className="text-xl text-gray-600 mb-6">
+                  Book your appointment today and give your pet the luxury experience they deserve
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-start space-x-4">
+                  <MapPin className="w-6 h-6 text-rose-500 mt-1 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium">Visit Our Studio</p>
+                    <p className="text-gray-600">1234 Petal Lane, Seattle, WA 98101</p>
+                    <a href="#" className="text-rose-500 hover:underline mt-1 block">Get Directions</a>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-4">
+                  <Phone className="w-6 h-6 text-rose-500 mt-1 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium">Call Us</p>
+                    <p className="text-gray-600">(206) 555-7890</p>
+                    <p className="text-sm text-gray-500 mt-1">Mon-Fri: 8am-6pm • Sat: 9am-4pm</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-4">
+                  <Mail className="w-6 h-6 text-rose-500 mt-1 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium">Email Us</p>
+                    <p className="text-gray-600">hello@bellaspaws.com</p>
+                    <a href="#" className="text-rose-500 hover:underline mt-1 block">Send a Message</a>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-amber-200">
+                  <p className="font-medium mb-2">Follow Our Happy Clients</p>
+                  <div className="flex space-x-4">
+                    <a 
+                      href="#" 
+                      className="w-10 h-10 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-full flex items-center justify-center transition-colors"
+                    >
+                      <Instagram className="w-5 h-5" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="bg-white rounded-2xl shadow-xl p-8 border border-amber-100"
+            >
+              <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">Book Your Appointment</h3>
+              
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
+                  <input
+                    id="name"
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition"
+                    placeholder="Sarah Johnson"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                  <input
+                    id="email"
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition"
+                    placeholder="sarah@example.com"
+                  />
+                </div>
+                
+                <div>
+                  <label htmlFor="service" className="block text-sm font-medium text-gray-700 mb-1">Service Interested In</label>
+                  <select
+                    id="service"
+                    value={formData.service}
+                    onChange={(e) => setFormData({...formData, service: e.target.value})}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition bg-white"
+                  >
+                    <option value="">Select a service</option>
+                    <option value="spa">Luxury Spa Bath</option>
+                    <option value="holistic">Holistic Wellness</option>
+                    <option value="mobile">Mobile Grooming</option>
+                    <option value="other">Other Services</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">Additional Details</label>
+                  <textarea
+                    id="message"
+                    rows={3}
+                    value={formData.message}
+                    onChange={(e) => setFormData({...formData, message: e.target.value})}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition"
+                    placeholder="Pet's name, breed, special needs, etc."
+                  ></textarea>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitStatus === 'submitting'}
+                  className={`w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 px-6 rounded-xl text-lg shadow-md transition-all transform ${
+                    submitStatus === 'submitting' ? 'opacity-75 cursor-not-allowed' : 'hover:scale-[1.02]'
+                  }`}
+                >
+                  {submitStatus === 'submitting' ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Booking Appointment...
+                    </span>
+                  ) : submitStatus === 'success' ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      </svg>
+                      Booking Confirmed!
+                    </span>
+                  ) : (
+                    "Request Appointment"
+                  )}
+                </button>
+
+                {submitStatus === 'error' && (
+                  <p className="text-red-500 text-center text-sm mt-2">
+                    Something went wrong. Please try again or call us directly.
+                  </p>
+                )}
+              </form>
+            </motion.div>
           </div>
         </div>
       </section>
@@ -455,176 +759,76 @@ export default function CascadeCanineRescue() {
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="bg-amber-500 p-2 rounded-full">
-                  <PawPrint className="w-6 h-6" />
+              <div className="flex items-center space-x-2 mb-4">
+                <div className="bg-amber-100 p-2 rounded-full">
+                  <Leaf className="w-6 h-6 text-rose-500" />
                 </div>
-                <div>
-                  <div className="text-xl font-bold">Cascade Canine Rescue</div>
-                  <div className="text-sm text-gray-400">501(c)(3) Nonprofit</div>
-                </div>
+                <span className="text-xl font-bold">Bella's Blooms</span>
               </div>
-              <p className="text-gray-400">
-                Rescuing, rehabilitating, and rehoming dogs in Colorado since 2015.
+              <p className="text-gray-400 mb-4">
+                Seattle's most trusted pet grooming studio, providing stress-free luxury care since 2015.
               </p>
+              <div className="flex space-x-4">
+                <a 
+                  href="#" 
+                  className="w-10 h-10 bg-gray-800 hover:bg-rose-500 rounded-full flex items-center justify-center transition-colors"
+                >
+                  <Instagram className="w-5 h-5" />
+                </a>
+              </div>
             </div>
             
             <div>
-              <h4 className="text-lg font-semibold mb-6">Quick Links</h4>
-              <ul className="space-y-3">
-                <li><a href="#dogs" className="text-gray-400 hover:text-white transition-colors">Available Dogs</a></li>
-                <li><a href="#process" className="text-gray-400 hover:text-white transition-colors">Adoption Process</a></li>
-                <li><a href="#donate" className="text-gray-400 hover:text-white transition-colors">Donate</a></li>
-                <li><a href="#volunteer" className="text-gray-400 hover:text-white transition-colors">Volunteer</a></li>
+              <h3 className="text-lg font-bold mb-4">Quick Links</h3>
+              <ul className="space-y-2">
+                {['Services', 'Gallery', 'About', 'Contact', 'Blog', 'FAQ'].map((item) => (
+                  <li key={item}>
+                    <a href={`#${item.toLowerCase()}`} className="text-gray-400 hover:text-white transition-colors block py-1">
+                      {item}
+                    </a>
+                  </li>
+                ))}
               </ul>
             </div>
             
             <div>
-              <h4 className="text-lg font-semibold mb-6">Contact Us</h4>
-              <ul className="space-y-3">
-                <li className="flex items-center space-x-3 text-gray-400">
-                  <Phone className="w-5 h-5" />
-                  <span>(720) 555-1234</span>
-                </li>
-                <li className="flex items-center space-x-3 text-gray-400">
-                  <MapPin className="w-5 h-5" />
-                  <span>Denver, CO 80202</span>
-                </li>
+              <h3 className="text-lg font-bold mb-4">Services</h3>
+              <ul className="space-y-2">
+                {['Luxury Spa Bath', 'Holistic Wellness', 'Mobile Grooming', 'Puppy Packages', 'Senior Care', 'Special Needs'].map((item) => (
+                  <li key={item}>
+                    <a href="#" className="text-gray-400 hover:text-white transition-colors block py-1">
+                      {item}
+                    </a>
+                  </li>
+                ))}
               </ul>
             </div>
             
             <div>
-              <h4 className="text-lg font-semibold mb-6">Business Hours</h4>
-              <ul className="space-y-2 text-gray-400">
-                <li>Monday - Friday: 9AM - 6PM</li>
-                <li>Saturday: 10AM - 4PM</li>
-                <li>Sunday: Emergency Only</li>
+              <h3 className="text-lg font-bold mb-4">Contact</h3>
+              <ul className="space-y-3">
+                <li className="flex items-start">
+                  <MapPin className="w-5 h-5 text-amber-400 mt-1 mr-3 flex-shrink-0" />
+                  <span className="text-gray-400">1234 Petal Lane<br/>Seattle, WA 98101</span>
+                </li>
+                <li className="flex items-center">
+                  <Phone className="w-5 h-5 text-amber-400 mr-3 flex-shrink-0" />
+                  <span className="text-gray-400">(206) 555-7890</span>
+                </li>
+                <li className="flex items-center">
+                  <Mail className="w-5 h-5 text-amber-400 mr-3 flex-shrink-0" />
+                  <span className="text-gray-400">hello@bellaspaws.com</span>
+                </li>
               </ul>
             </div>
           </div>
           
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-500 text-sm">
-            <p>© {new Date().getFullYear()} Cascade Canine Rescue. All rights reserved.</p>
+          <div className="border-t border-gray-800 mt-12 pt-8 text-center text-gray-500 text-sm">
+            <p>© {new Date().getFullYear()} Bella's Blooms Pet Studio. All rights reserved. Licensed & Insured.</p>
+            <p className="mt-2">Certified by National Dog Groomers Association of America • Member of Seattle Pet Business Alliance</p>
           </div>
         </div>
       </footer>
-
-      {/* Application Modal */}
-      {applicationOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-8">
-              <div className="flex justify-between items-center mb-8">
-                <h3 className="text-3xl font-bold text-gray-900">Adoption Application</h3>
-                <button 
-                  onClick={() => setApplicationOpen(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  ✕
-                </button>
-              </div>
-              
-              <form onSubmit={handleFormSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                      placeholder="John Smith"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
-                    <input
-                      type="email"
-                      required
-                      value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                      placeholder="john@example.com"
-                    />
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
-                  <input
-                    type="tel"
-                    required
-                    value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                    placeholder="(720) 555-1234"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Which dog are you interested in?</label>
-                  <select
-                    value={formData.dogInterest}
-                    onChange={(e) => setFormData({...formData, dogInterest: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                  >
-                    <option value="">Select a dog</option>
-                    {RESCUE_DOGS.map(dog => (
-                      <option key={dog.id} value={dog.title}>{dog.title} - {dog.breed}</option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tell us about your previous experience with dogs
-                  </label>
-                  <textarea
-                    value={formData.experience}
-                    onChange={(e) => setFormData({...formData, experience: e.target.value})}
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                    placeholder="Have you owned dogs before? What breeds? Any training experience?"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Type of Home</label>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {['House with Yard', 'Apartment/Condo', 'Other'].map(type => (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() => setFormData({...formData, homeType: type})}
-                        className={`px-4 py-3 border rounded-lg text-center transition-all ${
-                          formData.homeType === type 
-                            ? 'border-amber-500 bg-amber-50 text-amber-700' 
-                            : 'border-gray-300 hover:border-amber-300'
-                        }`}
-                      >
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                
-                <div className="pt-6 border-t">
-                  <button
-                    type="submit"
-                    className="w-full bg-amber-500 hover:bg-amber-600 text-white py-4 rounded-lg font-semibold text-lg transition-colors"
-                  >
-                    Submit Application
-                  </button>
-                  <p className="text-center text-gray-500 text-sm mt-4">
-                    We'll contact you within 24 hours to schedule a meet & greet
-                  </p>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
