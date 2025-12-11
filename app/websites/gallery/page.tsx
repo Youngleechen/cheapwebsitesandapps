@@ -2,18 +2,18 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { motion, AnimatePresence, useAnimation } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
+// Initialize Supabase client with anon key (public access)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Admin user ID from your screenshot
+// Admin user ID
 const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
 
-// Curated art collection - ALL METADATA IS FRONTEND-ONLY (NOT STORED IN DB)
-// ⚠️ IMPORTANT: This data is NOT saved to database - only used for display
+// Curated art collection - ALL METADATA IS FRONTEND-ONLY
 const ARTWORKS = [
   { 
     id: 'midnight-garden', 
@@ -62,8 +62,6 @@ const ARTWORKS = [
   },
 ];
 
-// ONLY these columns exist in your database:
-// id (uuid), user_id (uuid), path (text), created_at (timestamptz)
 type ImageRecord = {
   id: string;
   user_id: string;
@@ -72,7 +70,6 @@ type ImageRecord = {
 };
 
 export default function ArtGalleryPage() {
-  // State expects: { [artworkId]: { image_url: string | null } }
   const [artworks, setArtworks] = useState<{ [key: string]: { image_url: string | null } }>({});
   const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
@@ -84,7 +81,6 @@ export default function ArtGalleryPage() {
   const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
   const galleryRef = useRef<HTMLDivElement>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const controls = useAnimation();
 
   // Track cursor position
   useEffect(() => {
@@ -102,34 +98,29 @@ export default function ArtGalleryPage() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Initialize data - ONLY USES EXISTING COLUMNS
+  // Get current user session (for admin mode only)
   useEffect(() => {
-    const init = async () => {
+    const getSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const uid = session?.user.id;
       setUserId(uid || null);
-      
-      // Check if current user is the admin
-      const isAdmin = uid === ADMIN_USER_ID;
-      setAdminMode(isAdmin);
+      setAdminMode(uid === ADMIN_USER_ID);
+    };
+    getSession();
+  }, []);
 
-      if (uid) {
-        // ONLY SELECT EXISTING COLUMNS - NO EXTRA FIELDS
+  // Fetch gallery data PUBLICLY (works for all users)
+  useEffect(() => {
+    const fetchGalleryData = async () => {
+      try {
+        // Fetch ALL images for the admin user - public access
         const { data: images, error } = await supabase
           .from('images')
           .select('id, user_id, path, created_at')
-          .eq('user_id', ADMIN_USER_ID);
+          .eq('user_id', ADMIN_USER_ID)
+          .order('created_at', { ascending: false });
 
-        if (error) {
-          console.error('Failed to fetch images:', error);
-          // Initialize empty artworks if fetch fails
-          const emptyArtworks: { [key: string]: { image_url: string | null } } = {};
-          ARTWORKS.forEach(art => {
-            emptyArtworks[art.id] = { image_url: null };
-          });
-          setArtworks(emptyArtworks);
-          return;
-        }
+        if (error) throw error;
 
         // Initialize all artworks with null image_url
         const initialArtworks: { [key: string]: { image_url: string | null } } = {};
@@ -137,35 +128,50 @@ export default function ArtGalleryPage() {
           initialArtworks[art.id] = { image_url: null };
         });
 
-        // For each image, assign to matching artwork if path matches
-        images.forEach(img => {
-          const artwork = ARTWORKS.find(art => img.path.includes(`/${art.id}/`));
-          if (artwork) {
-            const publicUrl = supabase.storage.from('user_images').getPublicUrl(img.path).data.publicUrl;
+        // Process artwork images
+        ARTWORKS.forEach(artwork => {
+          // Find all images for this artwork
+          const artworkImages = images.filter(img => 
+            img.path.includes(`/${artwork.id}/`)
+          );
+          
+          if (artworkImages.length > 0) {
+            // Get the most recent image
+            const latestImage = artworkImages[0];
+            const publicUrl = supabase.storage
+              .from('user_images')
+              .getPublicUrl(latestImage.path).data.publicUrl;
             
-            // Only keep the MOST RECENT image per artwork
-            const currentImg = initialArtworks[artwork.id].image_url;
-            if (!currentImg || new Date(img.created_at) > new Date(images
-              .filter(i => i.path.includes(`/${artwork.id}/`))
-              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]?.created_at || 0)) {
-              initialArtworks[artwork.id] = { image_url: publicUrl };
-            }
+            initialArtworks[artwork.id] = { image_url: publicUrl };
           }
         });
 
         setArtworks(initialArtworks);
 
-        // Handle hero image separately
-        const heroImages = images.filter(img => img.path.includes('/gallery_ambiance/'));
+        // Process hero image
+        const heroImages = images.filter(img => 
+          img.path.includes('/gallery_ambiance/')
+        );
+        
         if (heroImages.length > 0) {
-          const latestHero = heroImages.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-          const heroUrl = supabase.storage.from('user_images').getPublicUrl(latestHero.path).data.publicUrl;
+          const latestHero = heroImages[0];
+          const heroUrl = supabase.storage
+            .from('user_images')
+            .getPublicUrl(latestHero.path).data.publicUrl;
           setHeroImageUrl(heroUrl);
         }
+      } catch (err: any) {
+        console.error('Error fetching gallery data:', err);
+        // Initialize empty artworks on error
+        const emptyArtworks: { [key: string]: { image_url: string | null } } = {};
+        ARTWORKS.forEach(art => {
+          emptyArtworks[art.id] = { image_url: null };
+        });
+        setArtworks(emptyArtworks);
       }
     };
 
-    init();
+    fetchGalleryData();
   }, []);
 
   // Cleanup hover timeout
@@ -177,7 +183,7 @@ export default function ArtGalleryPage() {
     };
   }, []);
 
-  // Upload handlers - ONLY STORE PATH
+  // Upload handlers (admin only)
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, artworkId: string) => {
     if (!adminMode) return;
     const file = e.target.files?.[0];
@@ -202,7 +208,7 @@ export default function ArtGalleryPage() {
       const { data } = supabase.storage.from('user_images').getPublicUrl(filePath);
       const imageUrl = data.publicUrl;
 
-      // ONLY INSERT EXISTING COLUMNS
+      // Insert into database
       const { error: dbError } = await supabase
         .from('images')
         .insert({
@@ -221,8 +227,8 @@ export default function ArtGalleryPage() {
       setStatus(`✨ ${artwork.title} added to collection!`);
       e.target.value = '';
     } catch (err: any) {
-      console.error(err);
-      setStatus(`❌ Error: ${err.message}`);
+      console.error('Upload error:', err);
+      setStatus(`❌ Error: ${err.message || 'Upload failed'}`);
     } finally {
       setUploading(null);
     }
@@ -261,8 +267,8 @@ export default function ArtGalleryPage() {
       setStatus('✨ Gallery ambiance updated!');
       e.target.value = '';
     } catch (err: any) {
-      console.error(err);
-      setStatus(`❌ Error: ${err.message}`);
+      console.error('Ambiance upload error:', err);
+      setStatus(`❌ Error: ${err.message || 'Upload failed'}`);
     } finally {
       setHeroUploading(false);
     }
@@ -410,9 +416,9 @@ export default function ArtGalleryPage() {
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {ARTWORKS.map((artwork) => {
-              const data = artworks[artwork.id];
+              const data = artworks[artwork.id] || { image_url: null };
               const isActive = activeArtwork === artwork.id;
-              const imageUrl = data?.image_url;
+              const imageUrl = data.image_url;
               
               return (
                 <motion.div
@@ -432,7 +438,9 @@ export default function ArtGalleryPage() {
                   <div 
                     className="absolute inset-0 bg-center bg-cover transition-all duration-700"
                     style={{ 
-                      backgroundImage: imageUrl ? `url(${imageUrl})` : 'linear-gradient(135deg, #1a1a3a 0%, #3a1a3a 100%)',
+                      backgroundImage: imageUrl 
+                        ? `url(${imageUrl})` 
+                        : 'linear-gradient(135deg, #1a1a3a 0%, #3a1a3a 100%)',
                       filter: isActive ? 'brightness(1.1)' : 'brightness(0.8)',
                       backgroundSize: isActive ? 'cover' : '110%'
                     }}
@@ -452,10 +460,7 @@ export default function ArtGalleryPage() {
                             type="file"
                             id={`upload-${artwork.id}`}
                             accept="image/*"
-                            onChange={(e) => {
-                              handleUpload(e, artwork.id);
-                              if (isActive) setActiveArtwork(null);
-                            }}
+                            onChange={(e) => handleUpload(e, artwork.id)}
                             className="hidden"
                           />
                         </label>
