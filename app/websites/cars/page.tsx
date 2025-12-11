@@ -167,7 +167,7 @@ export default function TestUploadPage() {
                   style={{ width: '100%', height: '150px', objectFit: 'cover' }}
                 />
                 {img.title && (
-                  <div style={{ padding: '0.5rem', fontSize: '0.8rem', textAlign: 'center' }}>
+                  <div style={{ padding: '0.8rem', fontSize: '0.8rem', textAlign: 'center' }}>
                     {img.title}
                   </div>
                 )}
