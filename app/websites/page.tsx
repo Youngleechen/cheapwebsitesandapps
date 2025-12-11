@@ -1,14 +1,8 @@
-// app/websites/gallery-skeleton/page.tsx
-
-export const metadata = {
-  title: 'AI Art Gallery — Admin Demo',
-  description: 'A dynamic, admin-powered gallery showcasing AI-generated artwork with on-the-fly image uploads, prompt copying, and real-time preview updates. Built for creative teams and developers.',
-};
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import Link from 'next/link';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,35 +10,36 @@ const supabase = createClient(
 );
 
 const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
-const GALLERY_PREFIX = 'gallery'; // Dedicated identifier for gallery images
+const GALLERY_PREFIX = 'websites_preview';
 
-const ARTWORKS = [
-  { 
-    id: 'midnight-garden', 
-    title: 'Midnight Garden',
-    prompt: 'A tranquil night garden scene where moonlight filters through dense foliage, illuminating fantastical glowing flowers in soft blues, purples, and whites. Include subtle mist and quiet shadows to enhance serenity.'
-  },
-  { 
-    id: 'neon-dreams', 
-    title: 'Neon Dreams',
-    prompt: 'A vivid, rain-drenched cyberpunk cityscape at night, drenched in neon reflections—think pinks, cyans, and deep violets shimmering on wet asphalt. Include blurred motion of distant hover cars and storefront signs in Japanese or futuristic glyphs.'
-  },
-  { 
-    id: 'ocean-memory', 
-    title: 'Ocean Memory',
-    prompt: 'An emotive, abstract interpretation of ocean waves using layered textures—rippling blues, deep teals, and accents of molten gold light that suggest memory, longing, or the passage of time. Avoid realism; aim for poetic fluidity.'
-  },
-];
-
-type ArtworkState = { [key: string]: { image_url: string | null } };
-
-export default function GallerySkeleton() {
-  const [artworks, setArtworks] = useState<ArtworkState>({});
+export default function WebsitesShowcase() {
+  const [websites, setWebsites] = useState<{ id: string; title: string; prompt: string }[]>([]);
+  const [websiteImages, setWebsiteImages] = useState<{ [key: string]: string | null }>({});
   const [userId, setUserId] = useState<string | null>(null);
   const [adminMode, setAdminMode] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  // Fetch website list from API route
+  useEffect(() => {
+    const fetchWebsites = async () => {
+      try {
+        const res = await fetch('/api/websites');
+        if (!res.ok) throw new Error('Failed to fetch websites');
+        const data = await res.json();
+        setWebsites(data);
+      } catch (err) {
+        console.error('Failed to load websites:', err);
+        setWebsites([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchWebsites();
+  }, []);
+
+  // Check if user is admin
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -55,8 +50,14 @@ export default function GallerySkeleton() {
     checkUser();
   }, []);
 
+  // Load preview images from Supabase
   useEffect(() => {
+    if (websites.length === 0) return;
+
     const loadImages = async () => {
+      const initialState: { [key: string]: string | null } = {};
+      websites.forEach(site => initialState[site.id] = null);
+
       const { data: images, error } = await supabase
         .from('images')
         .select('path, created_at')
@@ -66,61 +67,57 @@ export default function GallerySkeleton() {
 
       if (error) {
         console.error('Error loading images:', error);
+        setWebsiteImages(initialState);
         return;
       }
 
-      const initialState: ArtworkState = {};
-      ARTWORKS.forEach(art => initialState[art.id] = { image_url: null });
-
-      if (images) {
-        const latestImagePerArtwork: Record<string, string> = {};
-
-        for (const img of images) {
-          const pathParts = img.path.split('/');
-          if (pathParts.length >= 4 && pathParts[1] === GALLERY_PREFIX) {
-            const artId = pathParts[2];
-            if (ARTWORKS.some(a => a.id === artId) && !latestImagePerArtwork[artId]) {
-              latestImagePerArtwork[artId] = img.path;
-            }
+      const latestImagePerSite: Record<string, string> = {};
+      for (const img of images) {
+        const parts = img.path.split('/');
+        if (parts.length >= 4 && parts[1] === GALLERY_PREFIX) {
+          const siteId = parts[2];
+          if (websites.some(s => s.id === siteId) && !latestImagePerSite[siteId]) {
+            latestImagePerSite[siteId] = img.path;
           }
         }
-
-        ARTWORKS.forEach(art => {
-          if (latestImagePerArtwork[art.id]) {
-            const url = supabase.storage
-              .from('user_images')
-              .getPublicUrl(latestImagePerArtwork[art.id]).data.publicUrl;
-            initialState[art.id] = { image_url: url };
-          }
-        });
       }
 
-      setArtworks(initialState);
+      websites.forEach(site => {
+        if (latestImagePerSite[site.id]) {
+          const url = supabase.storage
+            .from('user_images')
+            .getPublicUrl(latestImagePerSite[site.id]).data.publicUrl;
+          initialState[site.id] = url;
+        }
+      });
+
+      setWebsiteImages(initialState);
     };
 
     loadImages();
-  }, []);
+  }, [websites]);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, artworkId: string) => {
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, siteId: string) => {
     if (!adminMode) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setUploading(artworkId);
+    setUploading(siteId);
     try {
-      const folderPath = `${ADMIN_USER_ID}/${GALLERY_PREFIX}/${artworkId}/`;
+      const folderPath = `${ADMIN_USER_ID}/${GALLERY_PREFIX}/${siteId}/`;
 
-      const { data: existingImages } = await supabase
+      // Clean up old images
+      const { data: existing } = await supabase
         .from('images')
         .select('path')
         .eq('user_id', ADMIN_USER_ID)
         .like('path', `${folderPath}%`);
 
-      if (existingImages && existingImages.length > 0) {
-        const pathsToDelete = existingImages.map(img => img.path);
+      if (existing?.length) {
+        const paths = existing.map(img => img.path);
         await Promise.all([
-          supabase.storage.from('user_images').remove(pathsToDelete),
-          supabase.from('images').delete().in('path', pathsToDelete)
+          supabase.storage.from('user_images').remove(paths),
+          supabase.from('images').delete().in('path', paths)
         ]);
       }
 
@@ -136,7 +133,7 @@ export default function GallerySkeleton() {
       if (dbErr) throw dbErr;
 
       const publicUrl = supabase.storage.from('user_images').getPublicUrl(filePath).data.publicUrl;
-      setArtworks(prev => ({ ...prev, [artworkId]: { image_url: publicUrl } }));
+      setWebsiteImages(prev => ({ ...prev, [siteId]: publicUrl }));
     } catch (err) {
       console.error('Upload failed:', err);
       alert('Upload failed. Please try again.');
@@ -146,76 +143,107 @@ export default function GallerySkeleton() {
     }
   };
 
-  const copyPrompt = (prompt: string, artworkId: string) => {
+  const copyPrompt = (prompt: string, siteId: string) => {
     navigator.clipboard.writeText(prompt).then(() => {
-      setCopiedId(artworkId);
+      setCopiedId(siteId);
       setTimeout(() => setCopiedId(null), 2000);
     });
   };
 
+  if (loading && websites.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-gray-500">Loading showcase...</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
-      <h1 className="text-3xl font-bold mb-6">AI Art Gallery — Admin Demo</h1>
+    <div className="min-h-screen bg-gray-50">
+      {/* Hero */}
+      <div className="bg-white border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight">
+            Real Websites. Real Businesses.
+          </h1>
+          <p className="mt-2 text-gray-600 max-w-2xl">
+            A curated showcase of live sites built for independent makers, artisans, and service professionals across America.
+          </p>
+        </div>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {ARTWORKS.map((art) => {
-          const artworkData = artworks[art.id] || { image_url: null };
-          const imageUrl = artworkData.image_url;
+      {/* Gallery Grid */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        {websites.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            No websites found. Create a folder under <code className="bg-gray-100 px-1 rounded">app/websites/</code> to get started.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-8">
+            {websites.map((site) => {
+              const imageUrl = websiteImages[site.id] || null;
 
-          return (
-            <div key={art.id} className="bg-gray-800 rounded-lg overflow-hidden flex flex-col">
-              {imageUrl ? (
-                <img 
-                  src={imageUrl} 
-                  alt={art.title} 
-                  className="w-full h-64 object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = '/placeholder-image.jpg';
-                  }}
-                />
-              ) : (
-                <div className="w-full h-64 bg-gray-700 flex items-center justify-center">
-                  <span className="text-gray-400">No image</span>
-                </div>
-              )}
+              return (
+                <div key={site.id} className="group relative">
+                  <Link href={`/websites/${site.id}`} className="block">
+                    <div className="aspect-[16/9] sm:aspect-[21/9] overflow-hidden rounded-xl bg-gray-100 shadow-sm transition-all duration-300 group-hover:shadow-md">
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          alt={site.title}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          loading="lazy"
+                          width={1200}
+                          height={675}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <div className="text-gray-400 text-lg font-medium">Preview image pending</div>
+                        </div>
+                      )}
+                    </div>
 
-              {adminMode && (
-                <div className="p-3 border-t border-gray-700 space-y-2">
-                  {!imageUrl && (
-                    <div className="flex flex-col gap-2">
-                      <p className="text-xs text-purple-300">{art.prompt}</p>
-                      <button
-                        onClick={() => copyPrompt(art.prompt, art.id)}
-                        className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded self-start"
-                        type="button"
-                      >
-                        {copiedId === art.id ? 'Copied!' : 'Copy Prompt'}
-                      </button>
+                    <div className="mt-4">
+                      <h2 className="text-xl font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                        {site.title}
+                      </h2>
+                      <p className="mt-1 text-gray-600 text-sm">{site.prompt}</p>
+                    </div>
+                  </Link>
+
+                  {/* Admin Controls */}
+                  {adminMode && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {!imageUrl && (
+                        <button
+                          onClick={() => copyPrompt(site.prompt, site.id)}
+                          className="text-xs bg-gray-800 text-white px-2 py-1 rounded hover:bg-gray-700"
+                          type="button"
+                        >
+                          {copiedId === site.id ? 'Copied!' : 'Copy Description'}
+                        </button>
+                      )}
+                      <label className="text-xs bg-blue-600 text-white px-2 py-1 rounded cursor-pointer">
+                        {uploading === site.id ? 'Uploading…' : 'Upload Preview'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleUpload(e, site.id)}
+                          className="hidden"
+                        />
+                      </label>
                     </div>
                   )}
-                  <label className="block text-sm bg-purple-600 text-white px-3 py-1 rounded cursor-pointer inline-block">
-                    {uploading === art.id ? 'Uploading…' : 'Upload Image'}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleUpload(e, art.id)}
-                      className="hidden"
-                    />
-                  </label>
                 </div>
-              )}
-
-              <div className="p-3 mt-auto">
-                <h2 className="font-semibold">{art.title}</h2>
-              </div>
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {adminMode && (
-        <div className="mt-6 p-3 bg-purple-900/30 border border-purple-600 rounded text-sm">
-          👤 Admin mode active — you can upload images and copy detailed prompts.
+        <div className="fixed bottom-4 right-4 bg-blue-600 text-white text-xs px-3 py-2 rounded shadow-lg">
+          👤 Admin Mode: Upload preview images for each site
         </div>
       )}
     </div>
