@@ -3,13 +3,11 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// Supabase setup
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Admin user ID
 const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
 
 const ARTWORKS = [
@@ -30,20 +28,10 @@ const ARTWORKS = [
   },
 ];
 
-type ArtworkState = { [key: string]: { image_url: string | null; loading: boolean; error: string | null } };
+type ArtworkState = { [key: string]: { image_url: string | null } };
 
 export default function GallerySkeleton() {
-  const [artworks, setArtworks] = useState<ArtworkState>(() => {
-    const initialState: ArtworkState = {};
-    ARTWORKS.forEach(art => {
-      initialState[art.id] = { 
-        image_url: null, 
-        loading: true,
-        error: null
-      };
-    });
-    return initialState;
-  });
+  const [artworks, setArtworks] = useState<ArtworkState>({});
   const [userId, setUserId] = useState<string | null>(null);
   const [adminMode, setAdminMode] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
@@ -61,81 +49,52 @@ export default function GallerySkeleton() {
 
   useEffect(() => {
     const loadImages = async () => {
-      // Reset loading states
-      setArtworks(prev => {
-        const newState = {...prev};
-        Object.keys(newState).forEach(key => {
-          newState[key] = { ...newState[key], loading: true, error: null };
-        });
-        return newState;
-      });
+      // Fetch ALL images for admin, ordered by created_at DESC
+      const { data: images, error } = await supabase
+        .from('images')
+        .select('path, created_at')
+        .eq('user_id', ADMIN_USER_ID)
+        .order('created_at', { ascending: false });
 
-      try {
-        // Get latest image for each artwork in a single query
-        const promises = ARTWORKS.map(async (art) => {
-          const { data: images, error } = await supabase
-            .from('images')
-            .select('path, created_at')
-            .eq('user_id', ADMIN_USER_ID)
-            .like('path', `%/${art.id}/%`)
-            .order('created_at', { ascending: false })
-            .limit(1);
-
-          if (error) throw error;
-
-          if (images && images.length > 0) {
-            const filePath = images[0].path;
-            const publicUrl = supabase.storage
-              .from('user_images')
-              .getPublicUrl(filePath, {
-                // Prevent caching with timestamp param
-                transform: { width: 800 }
-              }).data.publicUrl + `?v=${new Date(images[0].created_at).getTime()}`;
-            
-            return { 
-              artworkId: art.id, 
-              url: publicUrl 
-            };
-          }
-          return { artworkId: art.id, url: null };
-        });
-
-        const results = await Promise.all(promises);
-        
-        // Update state with results
-        setArtworks(prev => {
-          const newState = {...prev};
-          results.forEach(({ artworkId, url }) => {
-            if (newState[artworkId]) {
-              newState[artworkId] = { 
-                ...newState[artworkId], 
-                image_url: url,
-                loading: false
-              };
-            }
-          });
-          return newState;
-        });
-      } catch (error) {
+      if (error) {
         console.error('Error loading images:', error);
-        setArtworks(prev => {
-          const newState = {...prev};
-          Object.keys(newState).forEach(key => {
-            newState[key] = { 
-              ...newState[key], 
-              error: 'Failed to load image',
-              loading: false
-            };
-          });
-          return newState;
+        return;
+      }
+
+      const initialState: ArtworkState = {};
+      ARTWORKS.forEach(art => initialState[art.id] = { image_url: null });
+
+      if (images) {
+        const latestImagePerArtwork: Record<string, string> = {};
+
+        // Since ordered by created_at DESC, first occurrence of an artwork ID is the latest
+        for (const img of images) {
+          const pathParts = img.path.split('/');
+          if (pathParts.length >= 3) {
+            const artId = pathParts[1];
+            // Only set if we haven't recorded this artwork yet (ensures latest)
+            if (ARTWORKS.some(a => a.id === artId) && !latestImagePerArtwork[artId]) {
+              latestImagePerArtwork[artId] = img.path;
+            }
+          }
+        }
+
+        // Build final state
+        ARTWORKS.forEach(art => {
+          if (latestImagePerArtwork[art.id]) {
+            const url = supabase.storage
+              .from('user_images')
+              .getPublicUrl(latestImagePerArtwork[art.id]).data.publicUrl;
+            initialState[art.id] = { image_url: url };
+          }
         });
       }
+
+      setArtworks(initialState);
     };
 
-    if (adminMode !== undefined) {
-      loadImages();
-    }
-  }, [adminMode]);
+    loadImages();
+  }, []);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, artworkId: string) => {
     if (!adminMode) return;
@@ -143,34 +102,24 @@ export default function GallerySkeleton() {
     if (!file) return;
 
     setUploading(artworkId);
-    setArtworks(prev => ({
-      ...prev,
-      [artworkId]: { ...prev[artworkId], loading: true, error: null }
-    }));
-
     try {
       const folderPath = `${ADMIN_USER_ID}/${artworkId}/`;
-      
-      // 1. Get existing images for this artwork
-      const { data: existingImages, error: fetchError } = await supabase
+
+      // Optional: You can keep the cleanup logic, but it's not strictly needed
+      // if you always use latest by timestamp—but we'll keep it for storage hygiene
+      const { data: existingImages } = await supabase
         .from('images')
         .select('path')
         .eq('user_id', ADMIN_USER_ID)
         .like('path', `${folderPath}%`);
 
-      if (fetchError) throw fetchError;
-
-      // 2. Delete existing images if any
       if (existingImages && existingImages.length > 0) {
         const pathsToDelete = existingImages.map(img => img.path);
-        
-        // Delete from storage
         const { error: storageDelError } = await supabase.storage
           .from('user_images')
           .remove(pathsToDelete);
         if (storageDelError) throw storageDelError;
 
-        // Delete from database
         const { error: dbDelError } = await supabase
           .from('images')
           .delete()
@@ -178,53 +127,21 @@ export default function GallerySkeleton() {
         if (dbDelError) throw dbDelError;
       }
 
-      // 3. Upload new image with unique filename
-      const timestamp = Date.now();
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${folderPath}${timestamp}.${fileExt}`;
-      
+      const filePath = `${ADMIN_USER_ID}/${artworkId}/${Date.now()}_${file.name}`;
       const { error: uploadErr } = await supabase.storage
         .from('user_images')
-        .upload(filePath, file, { upsert: true, cacheControl: '3600' });
+        .upload(filePath, file, { upsert: true });
       if (uploadErr) throw uploadErr;
 
-      // 4. Insert new database record
       const { error: dbErr } = await supabase
         .from('images')
-        .insert({ 
-          user_id: ADMIN_USER_ID, 
-          path: filePath,
-          // Add explicit timestamp for ordering
-          created_at: new Date().toISOString()
-        });
+        .insert({ user_id: ADMIN_USER_ID, path: filePath });
       if (dbErr) throw dbErr;
 
-      // 5. Generate cache-busted URL
-      const publicUrl = supabase.storage
-        .from('user_images')
-        .getPublicUrl(filePath, {
-          transform: { width: 800 }
-        }).data.publicUrl + `?v=${timestamp}`;
-
-      // 6. Update UI
-      setArtworks(prev => ({
-        ...prev,
-        [artworkId]: { 
-          image_url: publicUrl,
-          loading: false,
-          error: null
-        }
-      }));
+      const publicUrl = supabase.storage.from('user_images').getPublicUrl(filePath).data.publicUrl;
+      setArtworks(prev => ({ ...prev, [artworkId]: { image_url: publicUrl } }));
     } catch (err) {
       console.error('Upload failed:', err);
-      setArtworks(prev => ({
-        ...prev,
-        [artworkId]: {
-          ...prev[artworkId],
-          error: 'Upload failed. Please try again.',
-          loading: false
-        }
-      }));
       alert('Upload failed. Please try again.');
     } finally {
       setUploading(null);
@@ -245,91 +162,54 @@ export default function GallerySkeleton() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {ARTWORKS.map((art) => {
-          const artworkData = artworks[art.id] || { image_url: null, loading: false, error: null };
-          const { image_url, loading, error } = artworkData;
+          const artworkData = artworks[art.id] || { image_url: null };
+          const imageUrl = artworkData.image_url;
 
           return (
             <div key={art.id} className="bg-gray-800 rounded-lg overflow-hidden flex flex-col">
-              {/* Image preview with loading/error states */}
-              <div className="relative w-full h-64 bg-gray-700">
-                {loading && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-                  </div>
-                )}
-                
-                {error && (
-                  <div className="absolute inset-0 flex items-center justify-center p-2 text-center text-red-400 text-sm">
-                    {error}
-                  </div>
-                )}
-                
-                {image_url ? (
-                  <img 
-                    src={image_url} 
-                    alt={art.title} 
-                    className={`w-full h-full object-cover transition-opacity duration-300 ${loading ? 'opacity-40' : 'opacity-100'}`}
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = '/placeholder-image.jpg';
-                      setArtworks(prev => ({
-                        ...prev,
-                        [art.id]: { ...prev[art.id], error: 'Image failed to load' }
-                      }));
-                    }}
-                  />
-                ) : (
-                  !loading && !error && (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-gray-400">No image</span>
-                    </div>
-                  )
-                )}
-              </div>
+              {imageUrl ? (
+                <img 
+                  src={imageUrl} 
+                  alt={art.title} 
+                  className="w-full h-64 object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '/placeholder-image.jpg';
+                  }}
+                />
+              ) : (
+                <div className="w-full h-64 bg-gray-700 flex items-center justify-center">
+                  <span className="text-gray-400">No image</span>
+                </div>
+              )}
 
-              {/* Admin controls */}
               {adminMode && (
                 <div className="p-3 border-t border-gray-700 space-y-2">
-                  {!image_url && !loading && (
+                  {!imageUrl && (
                     <div className="flex flex-col gap-2">
                       <p className="text-xs text-purple-300">{art.prompt}</p>
                       <button
                         onClick={() => copyPrompt(art.prompt, art.id)}
-                        className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded self-start transition-colors"
+                        className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded self-start"
                         type="button"
                       >
                         {copiedId === art.id ? 'Copied!' : 'Copy Prompt'}
                       </button>
                     </div>
                   )}
-                  <label className={`block text-sm px-3 py-1 rounded cursor-pointer inline-block transition-colors ${
-                    uploading === art.id 
-                      ? 'bg-purple-400 cursor-not-allowed' 
-                      : 'bg-purple-600 hover:bg-purple-500'
-                  }`}>
-                    <span className="flex items-center justify-center">
-                      {uploading === art.id ? (
-                        <>
-                          <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></span>
-                          Uploading...
-                        </>
-                      ) : (
-                        'Upload New Image'
-                      )}
-                    </span>
+                  <label className="block text-sm bg-purple-600 text-white px-3 py-1 rounded cursor-pointer inline-block">
+                    {uploading === art.id ? 'Uploading…' : 'Upload Image'}
                     <input
                       type="file"
                       accept="image/*"
                       onChange={(e) => handleUpload(e, art.id)}
                       className="hidden"
-                      disabled={uploading !== null}
                     />
                   </label>
                 </div>
               )}
 
-              {/* Title */}
               <div className="p-3 mt-auto">
-                <h2 className="font-semibold text-lg">{art.title}</h2>
+                <h2 className="font-semibold">{art.title}</h2>
               </div>
             </div>
           );
@@ -337,13 +217,8 @@ export default function GallerySkeleton() {
       </div>
 
       {adminMode && (
-        <div className="mt-6 p-4 bg-purple-900/30 border border-purple-600 rounded text-sm">
-          <div className="flex items-start">
-            <div className="bg-purple-600 text-white rounded-full w-5 h-5 flex items-center justify-center mr-2 mt-0.5 text-xs">i</div>
-            <p>Admin mode active — upload images and copy detailed prompts. Images are stored at: 
-              <code className="ml-1 bg-black/30 px-1 rounded">user_images/{`{user_id}`}/{`{artwork_id}`}/</code>
-            </p>
-          </div>
+        <div className="mt-6 p-3 bg-purple-900/30 border border-purple-600 rounded text-sm">
+          👤 Admin mode active — you can upload images and copy detailed prompts.
         </div>
       )}
     </div>
