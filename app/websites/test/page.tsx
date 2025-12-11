@@ -4,54 +4,49 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 
+// GallerySkeleton as provided (slightly refactored for reuse)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
+const GALLERY_PREFIX = 'gallery';
 
 const ARTWORKS = [
-  { 
-    id: 'midnight-garden', 
-    title: 'Emergency Storm Cleanup',
-    prompt: 'A dramatic dusk scene of professional arborists using rigging and cranes to safely remove a massive oak limb that fell across a suburban driveway during a storm. Wet pavement reflects emergency lights; focus on precision and calm under pressure.'
+  {
+    id: 'rescue-mission',
+    title: 'Rescue Mission',
+    prompt:
+      'A golden retriever mix with hopeful eyes being gently lifted from a muddy ditch by a rescuer wearing a Wildroot Canine Rescue vest. Early morning light, misty mountains in background, emotional but hopeful tone.',
   },
-  { 
-    id: 'neon-dreams', 
-    title: 'Precision Tree Trimming',
-    prompt: 'Sun-dappled close-up of a certified arborist making a clean pruning cut on a mature Japanese maple in an upscale Asheville garden. Show healthy branching structure, sharp tools, and attention to detail—no leaves on ground.'
+  {
+    id: 'forever-home',
+    title: 'Forever Home',
+    prompt:
+      'A joyful family (two adults, one child) playing fetch in a sun-dappled backyard with a newly adopted black lab. Warm golden hour lighting, overgrown grass, sense of belonging and safety.',
   },
-  { 
-    id: 'ocean-memory', 
-    title: 'Stump Grinding & Site Restoration',
-    prompt: 'Before-and-after style: left shows raw stump in grass, right shows smooth, seeded lawn with wood chips neatly bagged. Early morning light, dew on grass—emphasize cleanliness and care.'
+  {
+    id: 'volunteer-day',
+    title: 'Volunteer Day',
+    prompt:
+      'Diverse group of volunteers walking a pack of dogs through a red rock trail near Boulder. Clear blue sky, happy dogs on leashes, community spirit, vibrant outdoor energy.',
   },
 ];
 
 type ArtworkState = { [key: string]: { image_url: string | null } };
 
-export default function HomePage() {
+function GallerySkeleton() {
   const [artworks, setArtworks] = useState<ArtworkState>({});
   const [userId, setUserId] = useState<string | null>(null);
   const [adminMode, setAdminMode] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 50);
-    window.addEventListener('scroll', handleTick);
-    function handleTick() {
-      requestAnimationFrame(handleScroll);
-    }
-    return () => window.removeEventListener('scroll', handleTick);
-  }, []);
 
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      const uid = session?.user?.id || null;
+      const uid = session?.user.id || null;
       setUserId(uid);
       setAdminMode(uid === ADMIN_USER_ID);
     };
@@ -64,6 +59,7 @@ export default function HomePage() {
         .from('images')
         .select('path, created_at')
         .eq('user_id', ADMIN_USER_ID)
+        .like('path', `${ADMIN_USER_ID}/${GALLERY_PREFIX}/%`)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -72,21 +68,22 @@ export default function HomePage() {
       }
 
       const initialState: ArtworkState = {};
-      ARTWORKS.forEach(art => initialState[art.id] = { image_url: null });
+      ARTWORKS.forEach((art) => (initialState[art.id] = { image_url: null }));
 
       if (images) {
         const latestImagePerArtwork: Record<string, string> = {};
+
         for (const img of images) {
           const pathParts = img.path.split('/');
-          if (pathParts.length >= 3) {
-            const artId = pathParts[1];
-            if (ARTWORKS.some(a => a.id === artId) && !latestImagePerArtwork[artId]) {
+          if (pathParts.length >= 4 && pathParts[1] === GALLERY_PREFIX) {
+            const artId = pathParts[2];
+            if (ARTWORKS.some((a) => a.id === artId) && !latestImagePerArtwork[artId]) {
               latestImagePerArtwork[artId] = img.path;
             }
           }
         }
 
-        ARTWORKS.forEach(art => {
+        ARTWORKS.forEach((art) => {
           if (latestImagePerArtwork[art.id]) {
             const url = supabase.storage
               .from('user_images')
@@ -109,7 +106,8 @@ export default function HomePage() {
 
     setUploading(artworkId);
     try {
-      const folderPath = `${ADMIN_USER_ID}/${artworkId}/`;
+      const folderPath = `${ADMIN_USER_ID}/${GALLERY_PREFIX}/${artworkId}/`;
+
       const { data: existingImages } = await supabase
         .from('images')
         .select('path')
@@ -117,12 +115,14 @@ export default function HomePage() {
         .like('path', `${folderPath}%`);
 
       if (existingImages && existingImages.length > 0) {
-        const pathsToDelete = existingImages.map(img => img.path);
-        await supabase.storage.from('user_images').remove(pathsToDelete);
-        await supabase.from('images').delete().in('path', pathsToDelete);
+        const pathsToDelete = existingImages.map((img) => img.path);
+        await Promise.all([
+          supabase.storage.from('user_images').remove(pathsToDelete),
+          supabase.from('images').delete().in('path', pathsToDelete),
+        ]);
       }
 
-      const filePath = `${ADMIN_USER_ID}/${artworkId}/${Date.now()}_${file.name}`;
+      const filePath = `${folderPath}${Date.now()}_${file.name}`;
       const { error: uploadErr } = await supabase.storage
         .from('user_images')
         .upload(filePath, file, { upsert: true });
@@ -133,8 +133,10 @@ export default function HomePage() {
         .insert({ user_id: ADMIN_USER_ID, path: filePath });
       if (dbErr) throw dbErr;
 
-      const publicUrl = supabase.storage.from('user_images').getPublicUrl(filePath).data.publicUrl;
-      setArtworks(prev => ({ ...prev, [artworkId]: { image_url: publicUrl } }));
+      const publicUrl = supabase.storage
+        .from('user_images')
+        .getPublicUrl(filePath).data.publicUrl;
+      setArtworks((prev) => ({ ...prev, [artworkId]: { image_url: publicUrl } }));
     } catch (err) {
       console.error('Upload failed:', err);
       alert('Upload failed. Please try again.');
@@ -151,150 +153,191 @@ export default function HomePage() {
     });
   };
 
-  const imageUrl = (id: string) => {
-    return artworks[id]?.image_url || '/placeholder-tree.jpg';
-  };
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+      {ARTWORKS.map((art) => {
+        const artworkData = artworks[art.id] || { image_url: null };
+        const imageUrl = artworkData.image_url;
+
+        return (
+          <div key={art.id} className="bg-white rounded-xl overflow-hidden shadow-lg border border-gray-100">
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={art.title}
+                className="w-full h-56 object-cover"
+                loading="lazy"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://placehold.co/600x400/eee/999?text=Image+Not+Available';
+                }}
+              />
+            ) : (
+              <div className="w-full h-56 bg-gray-100 flex items-center justify-center">
+                <span className="text-gray-400 text-sm">Awaiting upload</span>
+              </div>
+            )}
+
+            {adminMode && (
+              <div className="p-3 border-t border-gray-200 space-y-2">
+                {!imageUrl && (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs text-gray-600">{art.prompt}</p>
+                    <button
+                      onClick={() => copyPrompt(art.prompt, art.id)}
+                      className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 px-2 py-1 rounded self-start transition"
+                      type="button"
+                    >
+                      {copiedId === art.id ? 'Copied!' : 'Copy Prompt'}
+                    </button>
+                  </div>
+                )}
+                <label className="block text-sm bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded cursor-pointer inline-block transition">
+                  {uploading === art.id ? 'Uploading…' : 'Upload'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleUpload(e, art.id)}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            )}
+
+            <div className="p-4">
+              <h3 className="font-bold text-gray-800">{art.title}</h3>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Main Page Component
+export default function WildrootCanineRescuePage() {
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   return (
-    <div className="font-sans bg-gradient-to-b from-amber-50 to-white text-gray-800">
-      {/* Sticky CTA Bar */}
-      {scrolled && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-amber-600 text-white py-2 px-4 shadow-lg">
-          <div className="max-w-6xl mx-auto flex justify-between items-center text-sm">
-            <span className="font-semibold">🌳 Same-Day Emergency Service</span>
-            <a 
-              href="tel:+18285550198" 
-              className="bg-white text-amber-700 px-4 py-1 rounded-full font-bold hover:bg-amber-100 transition"
-            >
-              Call Now: (828) 555-0198
-            </a>
+    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-white">
+      {/* Header */}
+      <header className="bg-white shadow-sm sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <div className="flex items-center space-x-2">
+            <div className="w-10 h-10 bg-amber-600 rounded-full flex items-center justify-center">
+              <span className="text-white font-bold text-lg">W</span>
+            </div>
+            <h1 className="text-xl font-bold text-gray-800">Wildroot Canine Rescue</h1>
           </div>
+          <nav className="hidden md:flex space-x-6">
+            <Link href="#adopt" className="text-gray-700 hover:text-amber-700 font-medium">
+              Adopt
+            </Link>
+            <Link href="#donate" className="text-gray-700 hover:text-amber-700 font-medium">
+              Donate
+            </Link>
+            <Link href="#volunteer" className="text-gray-700 hover:text-amber-700 font-medium">
+              Volunteer
+            </Link>
+          </nav>
+          <button className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition font-medium">
+            Contact Us
+          </button>
         </div>
-      )}
+      </header>
 
-      <main className="pt-6 pb-16">
-        {/* Headline */}
-        <div className="max-w-4xl mx-auto px-4 text-center mb-16">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4 leading-tight">
-            Certified Tree Care That <span className="text-amber-700">Protects</span> Your Property
+      <main className="container mx-auto px-4 py-8">
+        {/* Mission Statement */}
+        <section className="text-center mb-12">
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+            Every Dog Deserves a Second Chance
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Gryscol Tree Care serves Asheville homeowners with ISA-certified arborists, 
-            storm emergency response, and meticulous pruning—backed by 15+ years of local trust.
+          <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+            Wildroot Canine Rescue saves abandoned, abused, and neglected dogs across Boulder County. 
+            Since 2018, we’ve placed over 1,200 dogs into loving forever homes — and we’re just getting started.
           </p>
+        </section>
+
+        {/* Urgent CTA Bar */}
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 mb-12 text-center">
+          <h2 className="text-2xl font-bold text-amber-800 mb-2">Urgent: 14 Dogs Need Foster Homes This Week</h2>
+          <p className="text-amber-700 mb-4">Fostering saves lives. You provide the love — we cover all medical costs.</p>
+          <button className="bg-amber-600 text-white px-6 py-3 rounded-lg hover:bg-amber-700 transition font-bold text-lg">
+            Become a Foster
+          </button>
         </div>
 
-        {/* Services Overview */}
-        <div className="max-w-6xl mx-auto px-4 mb-20">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              { title: 'Emergency Tree Removal', desc: '24/7 storm response. Fully insured. No hidden fees.' },
-              { title: 'Precision Pruning', desc: 'Health-focused trimming that extends tree life & beauty.' },
-              { title: 'Stump Grinding', desc: 'Clean, complete removal—lawn-ready in one visit.' }
-            ].map((s, i) => (
-              <div key={i} className="bg-white p-6 rounded-xl border border-amber-100 shadow-sm hover:shadow-md transition">
-                <h3 className="text-xl font-bold text-gray-900 mb-2">{s.title}</h3>
-                <p className="text-gray-600">{s.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* Gallery Section */}
+        <section id="gallery" className="mb-16">
+          <h2 className="text-3xl font-bold text-gray-900 mb-6 text-center">Our Dogs, Our Family</h2>
+          {isClient && <GallerySkeleton />}
+        </section>
 
-        {/* Photo Gallery — Powered by Your System */}
-        <div className="max-w-6xl mx-auto px-4 mb-20">
-          <h2 className="text-3xl font-bold text-center mb-12">Real Work. Real Results.</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {ARTWORKS.map((art) => {
-              const artworkData = artworks[art.id] || { image_url: null };
-              const imageUrl = artworkData.image_url;
-
-              return (
-                <div key={art.id} className="group relative overflow-hidden rounded-xl shadow-lg">
-                  {imageUrl ? (
-                    <img
-                      src={imageUrl}
-                      alt={art.title}
-                      className="w-full h-64 object-cover transition-transform duration-500 group-hover:scale-105"
-                      onError={(e) => (e.currentTarget.src = '/placeholder-tree.jpg')}
-                    />
-                  ) : (
-                    <div className="w-full h-64 bg-amber-50 flex items-center justify-center">
-                      <span className="text-gray-400 text-sm">Project image loading...</span>
-                    </div>
-                  )}
-
-                  {adminMode && (
-                    <div className="absolute inset-0 bg-black bg-opacity-50 flex flex-col items-center justify-center p-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {!imageUrl && (
-                        <div className="text-white text-center mb-3">
-                          <p className="text-xs mb-2">{art.prompt}</p>
-                          <button
-                            onClick={() => copyPrompt(art.prompt, art.id)}
-                            className="text-xs bg-white text-amber-700 px-2 py-1 rounded"
-                          >
-                            {copiedId === art.id ? 'Copied!' : 'Copy Prompt'}
-                          </button>
-                        </div>
-                      )}
-                      <label className="text-white bg-amber-600 px-3 py-1.5 rounded cursor-pointer text-sm">
-                        {uploading === art.id ? 'Uploading…' : 'Upload'}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => handleUpload(e, art.id)}
-                          className="hidden"
-                        />
-                      </label>
-                    </div>
-                  )}
-
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                    <h3 className="text-white font-semibold">{art.title}</h3>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {adminMode && (
-            <div className="mt-6 p-3 bg-amber-100 border border-amber-300 rounded text-sm text-amber-800 text-center">
-              👤 Admin mode: Upload project photos using the prompts above.
+        {/* Stats */}
+        <section className="bg-white rounded-2xl shadow-sm p-6 mb-12">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div>
+              <div className="text-3xl font-bold text-amber-600">1,200+</div>
+              <div className="text-gray-600">Dogs Adopted</div>
             </div>
-          )}
-        </div>
-
-        {/* Final CTA */}
-        <div className="max-w-3xl mx-auto px-4 text-center">
-          <div className="bg-amber-50 rounded-2xl p-8 border border-amber-200">
-            <h2 className="text-2xl font-bold text-gray-900 mb-3">Free On-Site Estimate</h2>
-            <p className="text-gray-600 mb-6">
-              Get a detailed quote with no obligation. We’ll assess your trees, explain options, and honor your budget.
-            </p>
-            <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <a
-                href="tel:+18285550198"
-                className="bg-amber-600 hover:bg-amber-700 text-white px-8 py-3 rounded-full font-bold transition"
-              >
-                Call (828) 555-0198
-              </a>
-              <a
-                href="mailto:hello@gryscoltreecare.com"
-                className="border border-amber-600 text-amber-700 hover:bg-amber-50 px-8 py-3 rounded-full font-bold transition"
-              >
-                Email Us
-              </a>
+            <div>
+              <div className="text-3xl font-bold text-amber-600">98%</div>
+              <div className="text-gray-600">Success Rate</div>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-amber-600">42</div>
+              <div className="text-gray-600">Active Volunteers</div>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-amber-600">2018</div>
+              <div className="text-gray-600">Founded</div>
             </div>
           </div>
+        </section>
+
+        {/* Testimonials */}
+        <section className="mb-16">
+          <h2 className="text-3xl font-bold text-gray-900 mb-6 text-center">Hear From Our Adopters</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-xl border">
+              <p className="text-gray-700 italic">“Baxter was terrified when he arrived. Now he’s the joy of our family. Wildroot gave us hope.”</p>
+              <p className="mt-4 font-bold text-gray-900">— Sarah T., Boulder</p>
+            </div>
+            <div className="bg-white p-6 rounded-xl border">
+              <p className="text-gray-700 italic">“As a volunteer, I’ve seen firsthand how every dollar and hour makes a real difference.”</p>
+              <p className="mt-4 font-bold text-gray-900">— Marcus L., Louisville</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Footer CTA */}
+        <div className="bg-gray-900 text-white rounded-2xl p-8 text-center mb-12">
+          <h2 className="text-3xl font-bold mb-4">Ready to Change a Life?</h2>
+          <div className="flex flex-col sm:flex-row justify-center gap-4 mt-6">
+            <Link
+              href="#adopt"
+              className="bg-white text-gray-900 px-6 py-3 rounded-lg font-bold hover:bg-gray-100 transition"
+            >
+              View Dogs for Adoption
+            </Link>
+            <Link
+              href="#donate"
+              className="bg-amber-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-amber-700 transition"
+            >
+              Donate Now
+            </Link>
+          </div>
         </div>
+
+        {/* Trust Footer */}
+        <footer className="border-t pt-8 pb-12 text-center text-gray-600 text-sm">
+          <p>Wildroot Canine Rescue • Nonprofit EIN: 82-3456789 • Licensed by Colorado Dept. of Agriculture</p>
+          <p className="mt-2">1234 Pine St, Boulder, CO 80302 • (303) 555-0198</p>
+        </footer>
       </main>
-
-      {/* Minimal Footer */}
-      <footer className="bg-gray-900 text-gray-400 py-8">
-        <div className="max-w-6xl mx-auto px-4 text-center">
-          <p>© {new Date().getFullYear()} Gryscol Tree Care — Asheville, NC</p>
-          <p className="mt-1 text-sm">Fully Licensed • ISA Certified • $2M Liability Insurance</p>
-        </div>
-      </footer>
     </div>
   );
 }
