@@ -1,181 +1,187 @@
-// app/test-upload/page.tsx
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// Helper to create Supabase client on the client side
-function getSupabaseClient() {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    throw new Error('Missing Supabase env vars');
+// Supabase setup
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+// Admin user ID
+const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
+
+const ARTWORKS = [
+  { 
+    id: 'midnight-garden', 
+    title: 'Midnight Garden',
+    prompt: 'A tranquil night garden scene where moonlight filters through dense foliage, illuminating fantastical glowing flowers in soft blues, purples, and whites. Include subtle mist and quiet shadows to enhance serenity.'
+  },
+  { 
+    id: 'neon-dreams', 
+    title: 'Neon Dreams',
+    prompt: 'A vivid, rain-drenched cyberpunk cityscape at night, drenched in neon reflections—think pinks, cyans, and deep violets shimmering on wet asphalt. Include blurred motion of distant hover cars and storefront signs in Japanese or futuristic glyphs.'
+  },
+  { 
+    id: 'ocean-memory', 
+    title: 'Ocean Memory',
+    prompt: 'An emotive, abstract interpretation of ocean waves using layered textures—rippling blues, deep teals, and accents of molten gold light that suggest memory, longing, or the passage of time. Avoid realism; aim for poetic fluidity.'
+  },
+  {
+    id: 'dublin-strength-hub',
+    title: 'Dublin Strength Hub',
+    prompt: 'Mobile-first website for a boutique fitness studio in Dublin. Hero section showing class schedule ("Mon/Wed/Fri 6am & 6pm") with prominent "Join Free Trial" button. Clean pricing table (drop-in €20, 5-class pack €85, unlimited €149). Embedded Instagram feed showing client transformations. Trainer bio section with credentials. Professional blue/green color scheme with warm accent colors. Minimalist design showing on iPhone with Dublin cityscape background.'
   }
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
-}
+];
 
-export default function TestUploadPage() {
-  const [loading, setLoading] = useState(false);
-  const [images, setImages] = useState<{ id: string; image_url: string; title?: string }[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
+type ArtworkState = { [key: string]: { image_url: string | null } };
 
-  // Fetch existing uploads on mount
+export default function GallerySkeleton() {
+  const [artworks, setArtworks] = useState<ArtworkState>({});
+  const [userId, setUserId] = useState<string | null>(null);
+  const [adminMode, setAdminMode] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
   useEffect(() => {
-    const fetchImages = async () => {
-      const supabase = getSupabaseClient();
-      const { data: session } = await supabase.auth.getSession();
-      if (!session.session) {
-        router.push('/auth/signin');
-        return;
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const uid = session?.user.id || null;
+      setUserId(uid);
+      setAdminMode(uid === ADMIN_USER_ID);
+    };
+    checkUser();
+  }, []);
+
+  useEffect(() => {
+    const loadImages = async () => {
+      const { data: images } = await supabase
+        .from('images')
+        .select('path')
+        .eq('user_id', ADMIN_USER_ID);
+
+      const initialState: ArtworkState = {};
+      ARTWORKS.forEach(art => initialState[art.id] = { image_url: null });
+
+      if (images) {
+        ARTWORKS.forEach(art => {
+          const match = images.find(img => img.path.includes(`/${art.id}/`));
+          if (match) {
+            const url = supabase.storage
+              .from('user_images')
+              .getPublicUrl(match.path).data.publicUrl;
+            initialState[art.id] = { image_url: url };
+          }
+        });
       }
 
-      const { data, error } = await supabase
-        .from('test_uploads')
-        .select('id, image_url, title, created_at, user_id') // <-- updated columns
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Fetch error:', error);
-        setError('Failed to load some images');
-      } else {
-        setImages(data || []);
-      }
+      setArtworks(initialState);
     };
 
-    fetchImages();
-  }, [router]);
+    loadImages();
+  }, []);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, artworkId: string) => {
+    if (!adminMode) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      setError('Please upload an image file (jpg, png, etc.)');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    const supabase = getSupabaseClient();
-    const filename = `${Date.now()}-${file.name}`;
-
+    setUploading(artworkId);
     try {
-      // Upload to bucket
-      const { error: uploadError } = await supabase.storage
-        .from('test-images')
-        .upload(filename, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
+      const filePath = `${ADMIN_USER_ID}/${artworkId}/${Date.now()}_${file.name}`;
+      
+      const { error: uploadErr } = await supabase.storage
+        .from('user_images')
+        .upload(filePath, file, { upsert: true });
+      if (uploadErr) throw uploadErr;
 
-      if (uploadError) throw uploadError;
+      const { error: dbErr } = await supabase
+        .from('images')
+        .insert({ user_id: ADMIN_USER_ID, path: filePath });
+      if (dbErr) throw dbErr;
 
-      // Get public URL
-      const { data: publicUrlData } = supabase.storage
-        .from('test-images')
-        .getPublicUrl(filename);
-
-      const publicUrl = publicUrlData.publicUrl;
-
-      // Get current user ID
-      const { data: session } = await supabase.auth.getSession();
-      const userId = session.session?.user.id;
-
-      // Save to DB with correct column names
-      const { error: dbError } = await supabase
-        .from('test_uploads')
-        .insert({
-          image_url: publicUrl, // <-- changed from "url" to "image_url"
-          title: file.name,     // optional: you can make this editable later
-          user_id: userId,      // important for RLS and ownership
-        });
-
-      if (dbError) throw dbError;
-
-      // Add to UI instantly
-      setImages((prev) => [
-        {
-          id: filename,
-          image_url: publicUrl,
-          title: file.name, // optional
-        },
-        ...prev,
-      ]);
-      setSuccess('Image uploaded successfully!');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    } catch (err: any) {
-      console.error('Upload error:', err);
-      setError(err.message || 'Upload failed. Check bucket permissions and table schema.');
+      const publicUrl = supabase.storage.from('user_images').getPublicUrl(filePath).data.publicUrl;
+      setArtworks(prev => ({ ...prev, [artworkId]: { image_url: publicUrl } }));
+    } catch (err) {
+      console.error('Upload failed:', err);
     } finally {
-      setLoading(false);
+      setUploading(null);
+      e.target.value = '';
     }
   };
 
+  const copyPrompt = (prompt: string, artworkId: string) => {
+    navigator.clipboard.writeText(prompt).then(() => {
+      setCopiedId(artworkId);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
   return (
-    <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
-      <h1>📸 Test Image Upload</h1>
-      <p>Upload images to test your Supabase bucket and database.</p>
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+      <h1 className="text-3xl font-bold mb-6">CheapWebsites & Apps — Gallery Demo</h1>
 
-      {error && <div style={{ color: 'red', marginTop: '1rem' }}>{error}</div>}
-      {success && <div style={{ color: 'green', marginTop: '1rem' }}>{success}</div>}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {ARTWORKS.map((art) => {
+          const imageUrl = artworks[art.id]?.image_url;
 
-      <div style={{ marginTop: '1.5rem' }}>
-        <label
-          htmlFor="file-upload"
-          style={{
-            display: 'inline-block',
-            padding: '0.75rem 1.5rem',
-            backgroundColor: '#3b82f6',
-            color: 'white',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '1rem',
-          }}
-        >
-          {loading ? 'Uploading...' : 'Choose Image'}
-        </label>
-        <input
-          id="file-upload"
-          type="file"
-          accept="image/*"
-          onChange={handleUpload}
-          ref={fileInputRef}
-          style={{ display: 'none' }}
-          disabled={loading}
-        />
-      </div>
-
-      {/* Display uploaded images */}
-      <div style={{ marginTop: '2rem' }}>
-        <h2>Uploaded Images</h2>
-        {images.length === 0 ? (
-          <p>No images uploaded yet.</p>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
-            {images.map((img) => (
-              <div key={img.id} style={{ border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden' }}>
-                <img
-                  src={img.image_url} // <-- updated from img.url
-                  alt={img.title || 'Uploaded image'}
-                  style={{ width: '100%', height: '150px', objectFit: 'cover' }}
+          return (
+            <div key={art.id} className="bg-gray-800 rounded-lg overflow-hidden flex flex-col">
+              {/* Image preview */}
+              {imageUrl ? (
+                <img 
+                  src={imageUrl} 
+                  alt={art.title} 
+                  className="w-full h-64 object-cover"
                 />
-                {img.title && (
-                  <div style={{ padding: '0.5rem', fontSize: '0.8rem', textAlign: 'center' }}>
-                    {img.title}
-                  </div>
-                )}
+              ) : (
+                <div className="w-full h-64 bg-gray-700 flex items-center justify-center">
+                  <span className="text-gray-400">No image</span>
+                </div>
+              )}
+
+              {/* Admin controls */}
+              {adminMode && (
+                <div className="p-3 border-t border-gray-700 space-y-2">
+                  {!imageUrl && (
+                    <div className="flex flex-col gap-2">
+                      <p className="text-xs text-purple-300">{art.prompt}</p>
+                      <button
+                        onClick={() => copyPrompt(art.prompt, art.id)}
+                        className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded self-start"
+                        type="button"
+                      >
+                        {copiedId === art.id ? 'Copied!' : 'Copy Prompt'}
+                      </button>
+                    </div>
+                  )}
+                  <label className="block text-sm bg-purple-600 text-white px-3 py-1 rounded cursor-pointer inline-block">
+                    {uploading === art.id ? 'Uploading…' : 'Upload Image'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleUpload(e, art.id)}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              )}
+
+              {/* Title */}
+              <div className="p-3 mt-auto">
+                <h2 className="font-semibold">{art.title}</h2>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          );
+        })}
       </div>
+
+      {adminMode && (
+        <div className="mt-6 p-3 bg-purple-900/30 border border-purple-600 rounded text-sm">
+          👤 Admin mode active — you can upload images and copy detailed prompts.
+        </div>
+      )}
     </div>
   );
 }
