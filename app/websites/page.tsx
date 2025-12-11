@@ -19,16 +19,27 @@ export default function WebsitesShowcase() {
   const [adminMode, setAdminMode] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Fetch website list at mount
+  // Fetch website list from API route
   useEffect(() => {
-    fetch('/websites.json')
-      .then(res => res.json())
-      .then(data => setWebsites(data))
-      .catch(err => console.error('Failed to load websites:', err));
+    const fetchWebsites = async () => {
+      try {
+        const res = await fetch('/api/websites');
+        if (!res.ok) throw new Error('Failed to fetch websites');
+        const data = await res.json();
+        setWebsites(data);
+      } catch (err) {
+        console.error('Failed to load websites:', err);
+        setWebsites([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchWebsites();
   }, []);
 
-  // Check admin
+  // Check if user is admin
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -39,7 +50,7 @@ export default function WebsitesShowcase() {
     checkUser();
   }, []);
 
-  // Load images
+  // Load preview images from Supabase
   useEffect(() => {
     if (websites.length === 0) return;
 
@@ -61,26 +72,24 @@ export default function WebsitesShowcase() {
       }
 
       const latestImagePerSite: Record<string, string> = {};
-      if (images) {
-        for (const img of images) {
-          const parts = img.path.split('/');
-          if (parts.length >= 4 && parts[1] === GALLERY_PREFIX) {
-            const siteId = parts[2];
-            if (websites.some(s => s.id === siteId) && !latestImagePerSite[siteId]) {
-              latestImagePerSite[siteId] = img.path;
-            }
+      for (const img of images) {
+        const parts = img.path.split('/');
+        if (parts.length >= 4 && parts[1] === GALLERY_PREFIX) {
+          const siteId = parts[2];
+          if (websites.some(s => s.id === siteId) && !latestImagePerSite[siteId]) {
+            latestImagePerSite[siteId] = img.path;
           }
         }
-
-        websites.forEach(site => {
-          if (latestImagePerSite[site.id]) {
-            const url = supabase.storage
-              .from('user_images')
-              .getPublicUrl(latestImagePerSite[site.id]).data.publicUrl;
-            initialState[site.id] = url;
-          }
-        });
       }
+
+      websites.forEach(site => {
+        if (latestImagePerSite[site.id]) {
+          const url = supabase.storage
+            .from('user_images')
+            .getPublicUrl(latestImagePerSite[site.id]).data.publicUrl;
+          initialState[site.id] = url;
+        }
+      });
 
       setWebsiteImages(initialState);
     };
@@ -141,6 +150,14 @@ export default function WebsitesShowcase() {
     });
   };
 
+  if (loading && websites.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-gray-500">Loading showcase...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero */}
@@ -157,65 +174,71 @@ export default function WebsitesShowcase() {
 
       {/* Gallery Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        <div className="grid grid-cols-1 gap-8">
-          {websites.map((site) => {
-            const imageUrl = websiteImages[site.id] || null;
+        {websites.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            No websites found. Create a folder under <code className="bg-gray-100 px-1 rounded">app/websites/</code> to get started.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-8">
+            {websites.map((site) => {
+              const imageUrl = websiteImages[site.id] || null;
 
-            return (
-              <div key={site.id} className="group relative">
-                <Link href={`/websites/${site.id}`} className="block">
-                  <div className="aspect-[16/9] sm:aspect-[21/9] overflow-hidden rounded-xl bg-gray-100 shadow-sm transition-all duration-300 group-hover:shadow-md">
-                    {imageUrl ? (
-                      <img
-                        src={imageUrl}
-                        alt={site.title}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        loading="lazy"
-                        width={1200}
-                        height={675}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <div className="text-gray-400 text-lg font-medium">Preview image pending</div>
-                      </div>
-                    )}
-                  </div>
+              return (
+                <div key={site.id} className="group relative">
+                  <Link href={`/websites/${site.id}`} className="block">
+                    <div className="aspect-[16/9] sm:aspect-[21/9] overflow-hidden rounded-xl bg-gray-100 shadow-sm transition-all duration-300 group-hover:shadow-md">
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          alt={site.title}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          loading="lazy"
+                          width={1200}
+                          height={675}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <div className="text-gray-400 text-lg font-medium">Preview image pending</div>
+                        </div>
+                      )}
+                    </div>
 
-                  <div className="mt-4">
-                    <h2 className="text-xl font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
-                      {site.title}
-                    </h2>
-                    <p className="mt-1 text-gray-600 text-sm">{site.prompt}</p>
-                  </div>
-                </Link>
+                    <div className="mt-4">
+                      <h2 className="text-xl font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                        {site.title}
+                      </h2>
+                      <p className="mt-1 text-gray-600 text-sm">{site.prompt}</p>
+                    </div>
+                  </Link>
 
-                {/* Admin Controls */}
-                {adminMode && (
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {!imageUrl && (
-                      <button
-                        onClick={() => copyPrompt(site.prompt, site.id)}
-                        className="text-xs bg-gray-800 text-white px-2 py-1 rounded hover:bg-gray-700"
-                        type="button"
-                      >
-                        {copiedId === site.id ? 'Copied!' : 'Copy Description'}
-                      </button>
-                    )}
-                    <label className="text-xs bg-blue-600 text-white px-2 py-1 rounded cursor-pointer">
-                      {uploading === site.id ? 'Uploading…' : 'Upload Preview'}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleUpload(e, site.id)}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  {/* Admin Controls */}
+                  {adminMode && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {!imageUrl && (
+                        <button
+                          onClick={() => copyPrompt(site.prompt, site.id)}
+                          className="text-xs bg-gray-800 text-white px-2 py-1 rounded hover:bg-gray-700"
+                          type="button"
+                        >
+                          {copiedId === site.id ? 'Copied!' : 'Copy Description'}
+                        </button>
+                      )}
+                      <label className="text-xs bg-blue-600 text-white px-2 py-1 rounded cursor-pointer">
+                        {uploading === site.id ? 'Uploading…' : 'Upload Preview'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleUpload(e, site.id)}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {adminMode && (
