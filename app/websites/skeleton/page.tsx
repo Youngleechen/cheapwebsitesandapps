@@ -9,10 +9,9 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Admin user ID (replace with your real ID)
+// Admin user ID
 const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
 
-// Frontend-only artwork metadata
 const ARTWORKS = [
   { 
     id: 'midnight-garden', 
@@ -38,8 +37,8 @@ export default function GallerySkeleton() {
   const [userId, setUserId] = useState<string | null>(null);
   const [adminMode, setAdminMode] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Check if user is admin
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -50,7 +49,6 @@ export default function GallerySkeleton() {
     checkUser();
   }, []);
 
-  // Load existing images from Supabase (public read)
   useEffect(() => {
     const loadImages = async () => {
       const { data: images } = await supabase
@@ -79,7 +77,6 @@ export default function GallerySkeleton() {
     loadImages();
   }, []);
 
-  // Handle image upload for a specific artwork (admin only)
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, artworkId: string) => {
     if (!adminMode) return;
     const file = e.target.files?.[0];
@@ -89,19 +86,16 @@ export default function GallerySkeleton() {
     try {
       const filePath = `${ADMIN_USER_ID}/${artworkId}/${Date.now()}_${file.name}`;
       
-      // Upload to bucket
       const { error: uploadErr } = await supabase.storage
         .from('user_images')
         .upload(filePath, file, { upsert: true });
       if (uploadErr) throw uploadErr;
 
-      // Save to DB table
       const { error: dbErr } = await supabase
         .from('images')
         .insert({ user_id: ADMIN_USER_ID, path: filePath });
       if (dbErr) throw dbErr;
 
-      // Update UI
       const publicUrl = supabase.storage.from('user_images').getPublicUrl(filePath).data.publicUrl;
       setArtworks(prev => ({ ...prev, [artworkId]: { image_url: publicUrl } }));
     } catch (err) {
@@ -110,6 +104,13 @@ export default function GallerySkeleton() {
       setUploading(null);
       e.target.value = '';
     }
+  };
+
+  const copyPrompt = (prompt: string, artworkId: string) => {
+    navigator.clipboard.writeText(prompt).then(() => {
+      setCopiedId(artworkId);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
   };
 
   return (
@@ -121,8 +122,8 @@ export default function GallerySkeleton() {
           const imageUrl = artworks[art.id]?.image_url;
 
           return (
-            <div key={art.id} className="bg-gray-800 rounded-lg overflow-hidden">
-              {/* Image or placeholder */}
+            <div key={art.id} className="bg-gray-800 rounded-lg overflow-hidden flex flex-col">
+              {/* Image preview */}
               {imageUrl ? (
                 <img 
                   src={imageUrl} 
@@ -135,11 +136,20 @@ export default function GallerySkeleton() {
                 </div>
               )}
 
-              {/* Admin upload (if no image or always visible) */}
+              {/* Admin controls */}
               {adminMode && (
-                <div className="p-3 border-t border-gray-700">
+                <div className="p-3 border-t border-gray-700 space-y-2">
                   {!imageUrl && (
-                    <p className="text-xs text-purple-300 mb-2">{art.prompt}</p>
+                    <div className="flex items-start gap-2">
+                      <p className="text-xs text-purple-300 flex-1">{art.prompt}</p>
+                      <button
+                        onClick={() => copyPrompt(art.prompt, art.id)}
+                        className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded whitespace-nowrap"
+                        type="button"
+                      >
+                        {copiedId === art.id ? 'Copied!' : 'Copy Prompt'}
+                      </button>
+                    </div>
                   )}
                   <label className="block text-sm bg-purple-600 text-white px-3 py-1 rounded cursor-pointer inline-block">
                     {uploading === art.id ? 'Uploading…' : 'Upload'}
@@ -153,8 +163,8 @@ export default function GallerySkeleton() {
                 </div>
               )}
 
-              {/* Title (visible to all) */}
-              <div className="p-3">
+              {/* Title */}
+              <div className="p-3 mt-auto">
                 <h2 className="font-semibold">{art.title}</h2>
               </div>
             </div>
@@ -164,7 +174,7 @@ export default function GallerySkeleton() {
 
       {adminMode && (
         <div className="mt-6 p-3 bg-purple-900/30 border border-purple-600 rounded text-sm">
-          👤 Admin mode active — you can upload images.
+          👤 Admin mode active — you can upload and copy prompts.
         </div>
       )}
     </div>
