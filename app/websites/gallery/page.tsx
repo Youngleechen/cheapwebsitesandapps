@@ -12,7 +12,8 @@ const supabase = createClient(
 // Admin user ID from your screenshot
 const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
 
-// Curated art collection with emotional descriptors and upload prompts
+// Curated art collection - ALL METADATA IS FRONTEND-ONLY (NOT STORED IN DB)
+// ⚠️ IMPORTANT: This data is NOT saved to database - only used for display
 const ARTWORKS = [
   { 
     id: 'midnight-garden', 
@@ -61,17 +62,18 @@ const ARTWORKS = [
   },
 ];
 
-type ArtworkData = {
-  image_url: string | null;
-  artist: string;
-  emotionalTags: string[];
-  dimensions: string;
-  medium: string;
-  story: string;
+// ONLY these columns exist in your database:
+// id (uuid), user_id (uuid), path (text), created_at (timestamptz)
+type ImageRecord = {
+  id: string;
+  user_id: string;
+  path: string;
+  created_at: string;
 };
 
 export default function ArtGalleryPage() {
-  const [artworks, setArtworks] = useState<{ [key: string]: ArtworkData }>({});
+  // State expects: { [artworkId]: { image_url: string | null } }
+  const [artworks, setArtworks] = useState<{ [key: string]: { image_url: string | null } }>({});
   const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
   const [heroUploading, setHeroUploading] = useState(false);
@@ -100,7 +102,7 @@ export default function ArtGalleryPage() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Initialize data
+  // Initialize data - ONLY USES EXISTING COLUMNS
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -112,46 +114,53 @@ export default function ArtGalleryPage() {
       setAdminMode(isAdmin);
 
       if (uid) {
-        // Fetch artworks (only admin's images)
-        const { data: artworksData, error: artworksError } = await supabase
+        // ONLY SELECT EXISTING COLUMNS - NO EXTRA FIELDS
+        const { data: images, error } = await supabase
           .from('images')
-          .select('id, path, artist, emotional_tags, dimensions, medium, story')
-          .eq('user_id', ADMIN_USER_ID)
-          .in('id', ARTWORKS.map(a => a.id));
+          .select('id, user_id, path, created_at')
+          .eq('user_id', ADMIN_USER_ID);
 
-        if (artworksError) {
-          console.error('Failed to fetch artworks:', artworksError);
-        } else {
-          const initialState: { [key: string]: ArtworkData } = {};
-          ARTWORKS.forEach((art) => {
-            const stored = artworksData?.find((row: any) => row.id === art.id);
-            
-            initialState[art.id] = {
-              image_url: stored ? supabase.storage.from('user_images').getPublicUrl(stored.path).data.publicUrl : null,
-              artist: stored?.artist || art.artist,
-              emotionalTags: stored?.emotional_tags || art.emotionalTags,
-              dimensions: stored?.dimensions || art.dimensions,
-              medium: stored?.medium || art.medium,
-              story: stored?.story || `Experience ${art.title} by ${art.artist}`
-            };
+        if (error) {
+          console.error('Failed to fetch images:', error);
+          // Initialize empty artworks if fetch fails
+          const emptyArtworks: { [key: string]: { image_url: string | null } } = {};
+          ARTWORKS.forEach(art => {
+            emptyArtworks[art.id] = { image_url: null };
           });
-          setArtworks(initialState);
+          setArtworks(emptyArtworks);
+          return;
         }
 
-        // Fetch hero image
-        const { data: heroData, error: heroError } = await supabase
-          .from('images')
-          .select('path')
-          .eq('user_id', ADMIN_USER_ID)
-          .eq('id', 'gallery_ambiance')
-          .single();
+        // Initialize all artworks with null image_url
+        const initialArtworks: { [key: string]: { image_url: string | null } } = {};
+        ARTWORKS.forEach(art => {
+          initialArtworks[art.id] = { image_url: null };
+        });
 
-        if (!heroError && heroData) {
-          setHeroImageUrl(
-            supabase.storage.from('user_images').getPublicUrl(heroData.path).data.publicUrl
-          );
-        } else if (heroError && heroError.code !== 'PGRST116') {
-          console.error('Failed to fetch gallery ambiance:', heroError);
+        // For each image, assign to matching artwork if path matches
+        images.forEach(img => {
+          const artwork = ARTWORKS.find(art => img.path.includes(`/${art.id}/`));
+          if (artwork) {
+            const publicUrl = supabase.storage.from('user_images').getPublicUrl(img.path).data.publicUrl;
+            
+            // Only keep the MOST RECENT image per artwork
+            const currentImg = initialArtworks[artwork.id].image_url;
+            if (!currentImg || new Date(img.created_at) > new Date(images
+              .filter(i => i.path.includes(`/${artwork.id}/`))
+              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]?.created_at || 0)) {
+              initialArtworks[artwork.id] = { image_url: publicUrl };
+            }
+          }
+        });
+
+        setArtworks(initialArtworks);
+
+        // Handle hero image separately
+        const heroImages = images.filter(img => img.path.includes('/gallery_ambiance/'));
+        if (heroImages.length > 0) {
+          const latestHero = heroImages.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+          const heroUrl = supabase.storage.from('user_images').getPublicUrl(latestHero.path).data.publicUrl;
+          setHeroImageUrl(heroUrl);
         }
       }
     };
@@ -168,7 +177,7 @@ export default function ArtGalleryPage() {
     };
   }, []);
 
-  // Upload handlers
+  // Upload handlers - ONLY STORE PATH
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, artworkId: string) => {
     if (!adminMode) return;
     const file = e.target.files?.[0];
@@ -181,7 +190,6 @@ export default function ArtGalleryPage() {
       const artwork = ARTWORKS.find(a => a.id === artworkId);
       if (!artwork) throw new Error('Invalid artwork');
 
-      // Generate unique path in the same bucket
       const filePath = `${ADMIN_USER_ID}/${artworkId}/${Date.now()}_${file.name}`;
       
       // Upload to storage
@@ -191,32 +199,23 @@ export default function ArtGalleryPage() {
 
       if (uploadErr) throw uploadErr;
 
-      // Get public URL
       const { data } = supabase.storage.from('user_images').getPublicUrl(filePath);
       const imageUrl = data.publicUrl;
 
-      // Update or insert database record
+      // ONLY INSERT EXISTING COLUMNS
       const { error: dbError } = await supabase
         .from('images')
-        .upsert({
-          id: artworkId,
+        .insert({
           user_id: ADMIN_USER_ID,
-          path: filePath,
-          artist: artwork.artist,
-          emotional_tags: artwork.emotionalTags,
-          dimensions: artwork.dimensions,
-          medium: artwork.medium,
-          story: `Experience ${artwork.title} by ${artwork.artist}`
-        }, { onConflict: 'id' });
+          path: filePath
+        });
 
       if (dbError) throw dbError;
 
+      // Update UI
       setArtworks(prev => ({
         ...prev,
-        [artworkId]: {
-          ...prev[artworkId],
-          image_url: imageUrl,
-        },
+        [artworkId]: { image_url: imageUrl }
       }));
 
       setStatus(`✨ ${artwork.title} added to collection!`);
@@ -240,30 +239,21 @@ export default function ArtGalleryPage() {
     try {
       const filePath = `${ADMIN_USER_ID}/gallery_ambiance/${Date.now()}_${file.name}`;
       
-      // Upload to storage
       const { error: uploadErr } = await supabase.storage
         .from('user_images')
         .upload(filePath, file, { upsert: true });
 
       if (uploadErr) throw uploadErr;
 
-      // Get public URL
       const { data } = supabase.storage.from('user_images').getPublicUrl(filePath);
       const imageUrl = data.publicUrl;
 
-      // Update database record
       const { error: dbError } = await supabase
         .from('images')
-        .upsert({
-          id: 'gallery_ambiance',
+        .insert({
           user_id: ADMIN_USER_ID,
-          path: filePath,
-          artist: 'Gallery Ambiance',
-          emotional_tags: ['atmosphere', 'mood', 'setting'],
-          dimensions: 'Full screen',
-          medium: 'Digital',
-          story: 'Gallery ambiance setting the mood for art discovery'
-        }, { onConflict: 'id' });
+          path: filePath
+        });
 
       if (dbError) throw dbError;
 
@@ -404,7 +394,7 @@ export default function ArtGalleryPage() {
         )}
       </div>
 
-      {/* Interactive Art Collection - CLICK TO EXPAND */}
+      {/* Interactive Art Collection */}
       <section className="py-20 px-4 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-black via-purple-900/5 to-black pointer-events-none" />
         
@@ -422,6 +412,7 @@ export default function ArtGalleryPage() {
             {ARTWORKS.map((artwork) => {
               const data = artworks[artwork.id];
               const isActive = activeArtwork === artwork.id;
+              const imageUrl = data?.image_url;
               
               return (
                 <motion.div
@@ -441,7 +432,7 @@ export default function ArtGalleryPage() {
                   <div 
                     className="absolute inset-0 bg-center bg-cover transition-all duration-700"
                     style={{ 
-                      backgroundImage: data?.image_url ? `url(${data.image_url})` : 'linear-gradient(135deg, #1a1a3a 0%, #3a1a3a 100%)',
+                      backgroundImage: imageUrl ? `url(${imageUrl})` : 'linear-gradient(135deg, #1a1a3a 0%, #3a1a3a 100%)',
                       filter: isActive ? 'brightness(1.1)' : 'brightness(0.8)',
                       backgroundSize: isActive ? 'cover' : '110%'
                     }}
@@ -452,7 +443,7 @@ export default function ArtGalleryPage() {
                         <label 
                           htmlFor={`upload-${artwork.id}`}
                           className="block w-10 h-10 rounded-full bg-black/70 border border-purple-500/30 backdrop-blur-sm flex items-center justify-center cursor-pointer hover:bg-purple-900/30 transition-colors"
-                          onClick={(e) => e.stopPropagation()} // Prevent card click when clicking upload
+                          onClick={(e) => e.stopPropagation()}
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-purple-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -463,7 +454,6 @@ export default function ArtGalleryPage() {
                             accept="image/*"
                             onChange={(e) => {
                               handleUpload(e, artwork.id);
-                              // Close expanded view after upload
                               if (isActive) setActiveArtwork(null);
                             }}
                             className="hidden"
@@ -473,7 +463,7 @@ export default function ArtGalleryPage() {
                     )}
                     
                     {/* Admin-only upload prompt */}
-                    {adminMode && !data?.image_url && (
+                    {adminMode && !imageUrl && (
                       <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm p-4 text-center text-purple-200 text-sm border-t border-purple-500/30">
                         <p className="font-medium">Upload suggestion:</p>
                         <p className="mt-1">{artwork.prompt}</p>
@@ -481,7 +471,7 @@ export default function ArtGalleryPage() {
                     )}
                   </div>
                   
-                  {/* Artwork details panel */}
+                  {/* Artwork details panel - ALL METADATA FROM FRONTEND */}
                   <motion.div 
                     className="absolute bottom-0 left-0 right-0 backdrop-blur-xl bg-black/40 border-t border-purple-500/20 p-6 transition-all duration-500"
                     initial={{ y: '100%' }}
@@ -501,16 +491,16 @@ export default function ArtGalleryPage() {
                       </div>
                       
                       <h3 className="text-3xl md:text-4xl font-light mb-2">{artwork.title}</h3>
-                      <p className="text-xl text-purple-200 mb-4">by {data?.artist || artwork.artist}</p>
+                      <p className="text-xl text-purple-200 mb-4">by {artwork.artist}</p>
                       
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
                         <div>
                           <p className="text-sm text-purple-300 mb-1">Medium</p>
-                          <p className="font-medium">{data?.medium || artwork.medium}</p>
+                          <p className="font-medium">{artwork.medium}</p>
                         </div>
                         <div>
                           <p className="text-sm text-purple-300 mb-1">Dimensions</p>
-                          <p className="font-medium">{data?.dimensions || artwork.dimensions}</p>
+                          <p className="font-medium">{artwork.dimensions}</p>
                         </div>
                         <div>
                           <p className="text-sm text-purple-300 mb-1">Experience</p>
