@@ -1,187 +1,198 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { useState } from 'react';
 
-// Supabase setup
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+export default function AustinFoundationRepairPage() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
-// Admin user ID
-const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setSubmitStatus('idle');
 
-const ARTWORKS = [
-  { 
-    id: 'midnight-garden', 
-    title: 'Midnight Garden',
-    prompt: 'A tranquil night garden scene where moonlight filters through dense foliage, illuminating fantastical glowing flowers in soft blues, purples, and whites. Include subtle mist and quiet shadows to enhance serenity.'
-  },
-  { 
-    id: 'neon-dreams', 
-    title: 'Neon Dreams',
-    prompt: 'A vivid, rain-drenched cyberpunk cityscape at night, drenched in neon reflections—think pinks, cyans, and deep violets shimmering on wet asphalt. Include blurred motion of distant hover cars and storefront signs in Japanese or futuristic glyphs.'
-  },
-  { 
-    id: 'ocean-memory', 
-    title: 'Ocean Memory',
-    prompt: 'An emotive, abstract interpretation of ocean waves using layered textures—rippling blues, deep teals, and accents of molten gold light that suggest memory, longing, or the passage of time. Avoid realism; aim for poetic fluidity.'
-  },
-  {
-    id: 'dublin-strength-hub',
-    title: 'Dublin Strength Hub',
-    prompt: 'Mobile-first website for a boutique fitness studio in Dublin. Hero section showing class schedule ("Mon/Wed/Fri 6am & 6pm") with prominent "Join Free Trial" button. Clean pricing table (drop-in €20, 5-class pack €85, unlimited €149). Embedded Instagram feed showing client transformations. Trainer bio section with credentials. Professional blue/green color scheme with warm accent colors. Minimalist design showing on iPhone with Dublin cityscape background.'
-  }
-];
-
-type ArtworkState = { [key: string]: { image_url: string | null } };
-
-export default function GallerySkeleton() {
-  const [artworks, setArtworks] = useState<ArtworkState>({});
-  const [userId, setUserId] = useState<string | null>(null);
-  const [adminMode, setAdminMode] = useState(false);
-  const [uploading, setUploading] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const uid = session?.user.id || null;
-      setUserId(uid);
-      setAdminMode(uid === ADMIN_USER_ID);
-    };
-    checkUser();
-  }, []);
-
-  useEffect(() => {
-    const loadImages = async () => {
-      const { data: images } = await supabase
-        .from('images')
-        .select('path')
-        .eq('user_id', ADMIN_USER_ID);
-
-      const initialState: ArtworkState = {};
-      ARTWORKS.forEach(art => initialState[art.id] = { image_url: null });
-
-      if (images) {
-        ARTWORKS.forEach(art => {
-          const match = images.find(img => img.path.includes(`/${art.id}/`));
-          if (match) {
-            const url = supabase.storage
-              .from('user_images')
-              .getPublicUrl(match.path).data.publicUrl;
-            initialState[art.id] = { image_url: url };
-          }
-        });
-      }
-
-      setArtworks(initialState);
-    };
-
-    loadImages();
-  }, []);
-
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, artworkId: string) => {
-    if (!adminMode) return;
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploading(artworkId);
+    // In a real app, this would POST to an API route or third-party CRM
+    // For demo, we simulate success
     try {
-      const filePath = `${ADMIN_USER_ID}/${artworkId}/${Date.now()}_${file.name}`;
-      
-      const { error: uploadErr } = await supabase.storage
-        .from('user_images')
-        .upload(filePath, file, { upsert: true });
-      if (uploadErr) throw uploadErr;
-
-      const { error: dbErr } = await supabase
-        .from('images')
-        .insert({ user_id: ADMIN_USER_ID, path: filePath });
-      if (dbErr) throw dbErr;
-
-      const publicUrl = supabase.storage.from('user_images').getPublicUrl(filePath).data.publicUrl;
-      setArtworks(prev => ({ ...prev, [artworkId]: { image_url: publicUrl } }));
-    } catch (err) {
-      console.error('Upload failed:', err);
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      setSubmitStatus('success');
+      (e.target as HTMLFormElement).reset();
+    } catch {
+      setSubmitStatus('error');
     } finally {
-      setUploading(null);
-      e.target.value = '';
+      setIsSubmitting(false);
     }
   };
 
-  const copyPrompt = (prompt: string, artworkId: string) => {
-    navigator.clipboard.writeText(prompt).then(() => {
-      setCopiedId(artworkId);
-      setTimeout(() => setCopiedId(null), 2000);
-    });
-  };
-
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
-      <h1 className="text-3xl font-bold mb-6">CheapWebsites & Apps — Gallery Demo</h1>
+    <div className="font-sans bg-gray-50 text-gray-800">
+      {/* Hero */}
+      <header className="bg-gradient-to-r from-gray-900 to-gray-800 text-white">
+        <div className="container mx-auto px-4 py-12 md:py-16 text-center">
+          <h1 className="text-3xl md:text-5xl font-bold max-w-3xl mx-auto">
+            Trusted Foundation Repair in Austin — <span className="text-orange-400">Free Inspection</span>
+          </h1>
+          <p className="mt-4 text-lg max-w-2xl mx-auto opacity-90">
+            Licensed, insured, and BBB-accredited. Same-day assessments. 150+ homes stabilized since 2018.
+          </p>
+          <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
+            <a
+              href="tel:+15125550199"
+              className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-lg text-lg transition"
+            >
+              Call Now: (512) 555-0199
+            </a>
+            <a
+              href="#contact"
+              className="bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 text-white font-bold py-3 px-8 rounded-lg text-lg transition"
+            >
+              Get Free Estimate
+            </a>
+          </div>
+        </div>
+      </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {ARTWORKS.map((art) => {
-          const imageUrl = artworks[art.id]?.image_url;
-
-          return (
-            <div key={art.id} className="bg-gray-800 rounded-lg overflow-hidden flex flex-col">
-              {/* Image preview */}
-              {imageUrl ? (
-                <img 
-                  src={imageUrl} 
-                  alt={art.title} 
-                  className="w-full h-64 object-cover"
-                />
-              ) : (
-                <div className="w-full h-64 bg-gray-700 flex items-center justify-center">
-                  <span className="text-gray-400">No image</span>
-                </div>
-              )}
-
-              {/* Admin controls */}
-              {adminMode && (
-                <div className="p-3 border-t border-gray-700 space-y-2">
-                  {!imageUrl && (
-                    <div className="flex flex-col gap-2">
-                      <p className="text-xs text-purple-300">{art.prompt}</p>
-                      <button
-                        onClick={() => copyPrompt(art.prompt, art.id)}
-                        className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded self-start"
-                        type="button"
-                      >
-                        {copiedId === art.id ? 'Copied!' : 'Copy Prompt'}
-                      </button>
-                    </div>
-                  )}
-                  <label className="block text-sm bg-purple-600 text-white px-3 py-1 rounded cursor-pointer inline-block">
-                    {uploading === art.id ? 'Uploading…' : 'Upload Image'}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleUpload(e, art.id)}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-              )}
-
-              {/* Title */}
-              <div className="p-3 mt-auto">
-                <h2 className="font-semibold">{art.title}</h2>
-              </div>
-            </div>
-          );
-        })}
+      {/* Trust Badges */}
+      <div className="bg-white py-4 border-b">
+        <div className="container mx-auto px-4 flex flex-wrap justify-center gap-6 text-sm text-gray-600">
+          <span className="flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            BBB Accredited
+          </span>
+          <span>✅ Licensed & Insured (TX #123456)</span>
+          <span>🏠 150+ Austin Homes Repaired</span>
+          <span>⏱️ Same-Day Inspections</span>
+        </div>
       </div>
 
-      {adminMode && (
-        <div className="mt-6 p-3 bg-purple-900/30 border border-purple-600 rounded text-sm">
-          👤 Admin mode active — you can upload images and copy detailed prompts.
+      {/* Services */}
+      <section className="py-12 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <h2 className="text-3xl font-bold">Signs You Need Foundation Repair</h2>
+            <p className="mt-3 text-gray-600">
+              Ignoring these can lead to structural damage, plumbing leaks, and decreased home value.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              'Cracks in walls or floors',
+              'Sticking doors/windows',
+              'Sloping or uneven floors',
+              'Gaps around door frames',
+              'Cracks in exterior brick',
+              'Pooling water near foundation',
+            ].map((item, i) => (
+              <div key={i} className="p-5 border border-gray-200 rounded-lg hover:shadow-md transition">
+                <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center mb-3">
+                  <span className="text-orange-600 font-bold">{i + 1}</span>
+                </div>
+                <h3 className="font-semibold">{item}</h3>
+              </div>
+            ))}
+          </div>
         </div>
-      )}
+      </section>
+
+      {/* Before/After Gallery */}
+      <section className="py-12 bg-gray-50">
+        <div className="container mx-auto px-4">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <h2 className="text-3xl font-bold">Real Austin Home Repairs</h2>
+            <p className="mt-3 text-gray-600">All work performed by our in-house team — no subcontractors.</p>
+          </div>
+          <div className="grid md:grid-cols-2 gap-6">
+            {[
+              { before: '/austin-foundation-repair/before-1.jpg', after: '/austin-foundation-repair/after-1.jpg', location: 'South Congress' },
+              { before: '/austin-foundation-repair/before-2.jpg', after: '/austin-foundation-repair/after-2.jpg', location: 'Cedar Park' },
+            ].map((project, i) => (
+              <div key={i} className="bg-white rounded-lg overflow-hidden shadow-sm">
+                <div className="grid grid-cols-2 h-48">
+                  <div className="relative">
+                    <img
+                      src={project.before}
+                      alt="Before repair"
+                      className="w-full h-full object-cover"
+                      loading={i === 0 ? 'eager' : 'lazy'}
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-center py-1 text-sm">Before</div>
+                  </div>
+                  <div className="relative">
+                    <img
+                      src={project.after}
+                      alt="After repair"
+                      className="w-full h-full object-cover"
+                      loading={i === 0 ? 'eager' : 'lazy'}
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-center py-1 text-sm">After</div>
+                  </div>
+                </div>
+                <div className="p-3 text-center text-gray-700 text-sm">{project.location}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA / Contact */}
+      <section id="contact" className="py-16 bg-gradient-to-r from-gray-800 to-gray-900 text-white">
+        <div className="container mx-auto px-4 max-w-4xl">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold">Get Your Free Foundation Inspection</h2>
+            <p className="mt-3 opacity-90">Licensed engineer will assess your home — no obligation.</p>
+          </div>
+          {submitStatus === 'success' ? (
+            <div className="bg-green-900/30 border border-green-700 rounded-lg p-6 text-center">
+              <h3 className="text-xl font-bold text-green-300">Thank you!</h3>
+              <p>We’ll call you within 1 hour to schedule your free inspection.</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-4">
+              <input
+                type="text"
+                placeholder="Full Name"
+                required
+                className="px-4 py-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              <input
+                type="tel"
+                placeholder="Phone (e.g. 512-555-0199)"
+                required
+                className="px-4 py-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              <input
+                type="text"
+                placeholder="Address or Neighborhood"
+                required
+                className="px-4 py-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500 md:col-span-2"
+              />
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="md:col-span-2 bg-orange-500 hover:bg-orange-600 py-3 px-6 rounded-lg font-bold transition disabled:opacity-70"
+              >
+                {isSubmitting ? 'Sending...' : 'Request Free Inspection'}
+              </button>
+              {submitStatus === 'error' && (
+                <p className="md:col-span-2 text-red-300 text-center">Failed to send. Please try again.</p>
+              )}
+            </form>
+          )}
+          <div className="mt-8 text-center text-sm opacity-75">
+            📞 Prefer to call? <a href="tel:+15125550199" className="underline">Call (512) 555-0199</a> — we answer 24/7 for emergencies.
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-gray-400 py-8 text-sm">
+        <div className="container mx-auto px-4 text-center">
+          <p>© {new Date().getFullYear()} Austin Foundation Repair Pros. Licensed in Texas (#123456). BBB Accredited.</p>
+          <p className="mt-2">Serving Austin, Round Rock, Cedar Park, and Pflugerville since 2018.</p>
+        </div>
+      </footer>
     </div>
   );
 }
