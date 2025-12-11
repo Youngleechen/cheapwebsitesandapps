@@ -9,24 +9,12 @@ const supabase = createClient(
 );
 
 const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
-const GALLERY_PREFIX = 'gallery'; // Dedicated identifier for gallery images
+const GALLERY_PREFIX = 'gallery';
 
 const ARTWORKS = [
-  { 
-    id: 'midnight-garden', 
-    title: 'Midnight Garden',
-    prompt: 'A tranquil night garden scene where moonlight filters through dense foliage, illuminating fantastical glowing flowers in soft blues, purples, and whites. Include subtle mist and quiet shadows to enhance serenity.'
-  },
-  { 
-    id: 'neon-dreams', 
-    title: 'Neon Dreams',
-    prompt: 'A vivid, rain-drenched cyberpunk cityscape at night, drenched in neon reflections—think pinks, cyans, and deep violets shimmering on wet asphalt. Include blurred motion of distant hover cars and storefront signs in Japanese or futuristic glyphs.'
-  },
-  { 
-    id: 'ocean-memory', 
-    title: 'Ocean Memory',
-    prompt: 'An emotive, abstract interpretation of ocean waves using layered textures—rippling blues, deep teals, and accents of molten gold light that suggest memory, longing, or the passage of time. Avoid realism; aim for poetic fluidity.'
-  },
+  { id: 'midnight-garden', title: 'Midnight Garden', prompt: 'A tranquil night garden...' },
+  { id: 'neon-dreams', title: 'Neon Dreams', prompt: 'A vivid, rain-drenched cyberpunk...' },
+  { id: 'ocean-memory', title: 'Ocean Memory', prompt: 'An emotive, abstract interpretation...' },
 ];
 
 type ArtworkState = { [key: string]: { image_url: string | null } };
@@ -50,12 +38,11 @@ export default function GallerySkeleton() {
 
   useEffect(() => {
     const loadImages = async () => {
-      // Fetch ONLY gallery images for admin
       const { data: images, error } = await supabase
         .from('images')
         .select('path, created_at')
         .eq('user_id', ADMIN_USER_ID)
-        .like('path', `${ADMIN_USER_ID}/${GALLERY_PREFIX}/%`) // Critical filter
+        .like('path', `${ADMIN_USER_ID}/${GALLERY_PREFIX}/%`)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -68,20 +55,16 @@ export default function GallerySkeleton() {
 
       if (images) {
         const latestImagePerArtwork: Record<string, string> = {};
-
         for (const img of images) {
           const pathParts = img.path.split('/');
-          // Path structure: [user_id, gallery_prefix, artwork_id, filename]
           if (pathParts.length >= 4 && pathParts[1] === GALLERY_PREFIX) {
             const artId = pathParts[2];
-            // Only consider defined artworks and take the latest
             if (ARTWORKS.some(a => a.id === artId) && !latestImagePerArtwork[artId]) {
               latestImagePerArtwork[artId] = img.path;
             }
           }
         }
 
-        // Build final state with only relevant artworks
         ARTWORKS.forEach(art => {
           if (latestImagePerArtwork[art.id]) {
             const url = supabase.storage
@@ -105,10 +88,7 @@ export default function GallerySkeleton() {
 
     setUploading(artworkId);
     try {
-      // New path structure with gallery identifier
       const folderPath = `${ADMIN_USER_ID}/${GALLERY_PREFIX}/${artworkId}/`;
-
-      // Clean up OLD gallery images for this artwork
       const { data: existingImages } = await supabase
         .from('images')
         .select('path')
@@ -123,7 +103,6 @@ export default function GallerySkeleton() {
         ]);
       }
 
-      // Upload new image with gallery prefix
       const filePath = `${folderPath}${Date.now()}_${file.name}`;
       const { error: uploadErr } = await supabase.storage
         .from('user_images')
@@ -156,7 +135,6 @@ export default function GallerySkeleton() {
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
       <h1 className="text-3xl font-bold mb-6">CheapWebsites & Apps — Gallery Demo</h1>
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {ARTWORKS.map((art) => {
           const artworkData = artworks[art.id] || { image_url: null };
