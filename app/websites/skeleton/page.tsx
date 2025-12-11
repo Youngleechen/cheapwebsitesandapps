@@ -51,21 +51,42 @@ export default function GallerySkeleton() {
 
   useEffect(() => {
     const loadImages = async () => {
-      const { data: images } = await supabase
+      const { data: images, error } = await supabase
         .from('images')
-        .select('path')
-        .eq('user_id', ADMIN_USER_ID);
+        .select('path, id')
+        .eq('user_id', ADMIN_USER_ID)
+        .order('id', { ascending: false }); // Get latest first
+
+      if (error) {
+        console.error('Error loading images:', error);
+        return;
+      }
 
       const initialState: ArtworkState = {};
       ARTWORKS.forEach(art => initialState[art.id] = { image_url: null });
 
       if (images) {
+        // Create a map of artwork IDs to their latest image
+        const artworkImageMap: Record<string, string> = {};
+        
+        images.forEach(img => {
+          // Extract artwork ID from path: "user_id/artwork_id/filename"
+          const pathParts = img.path.split('/');
+          if (pathParts.length >= 3) {
+            const artId = pathParts[1];
+            // Only set if we haven't seen this artwork ID yet (since we ordered by latest)
+            if (ARTWORKS.some(a => a.id === artId) && !artworkImageMap[artId]) {
+              artworkImageMap[artId] = img.path;
+            }
+          }
+        });
+
+        // Update state with found images
         ARTWORKS.forEach(art => {
-          const match = images.find(img => img.path.includes(`/${art.id}/`));
-          if (match) {
+          if (artworkImageMap[art.id]) {
             const url = supabase.storage
               .from('user_images')
-              .getPublicUrl(match.path).data.publicUrl;
+              .getPublicUrl(artworkImageMap[art.id]).data.publicUrl;
             initialState[art.id] = { image_url: url };
           }
         });
@@ -84,55 +105,56 @@ export default function GallerySkeleton() {
 
     setUploading(artworkId);
     try {
-      const filePath = `${ADMIN_USER_ID}/${artworkId}/${Date.now()}_${file.name}`;
-
-      // ============ OPTIONAL: Clean up old storage files ============
-      // Uncomment this block if you want to delete old files from storage
-      /*
-      const { data: existingList } = await supabase.storage
-        .from('user_images')
-        .list(`${ADMIN_USER_ID}/${artworkId}/`);
-
-      if (existingList && existingList.length > 0) {
-        const pathsToDelete = existingList.map(f => `${ADMIN_USER_ID}/${artworkId}/${f.name}`);
-        await supabase.storage.from('user_images').remove(pathsToDelete);
-      }
-      */
-
-      // ============ DELETE OLD DATABASE RECORD ============
-      const { error: deleteErr } = await supabase
+      // 1. Get existing images for this artwork
+      const folderPath = `${ADMIN_USER_ID}/${artworkId}/`;
+      const { data: existingImages, error: fetchError } = await supabase
         .from('images')
-        .delete()
+        .select('path')
         .eq('user_id', ADMIN_USER_ID)
-        .like('path', `%/${artworkId}/%`);
+        .like('path', `${folderPath}%`);
 
-      if (deleteErr) throw deleteErr;
+      if (fetchError) throw fetchError;
 
-      // ============ UPLOAD NEW FILE ============
+      // 2. Delete existing images if any
+      if (existingImages && existingImages.length > 0) {
+        const pathsToDelete = existingImages.map(img => img.path);
+        
+        // Delete from storage
+        const { error: storageDelError } = await supabase.storage
+          .from('user_images')
+          .remove(pathsToDelete);
+        if (storageDelError) throw storageDelError;
+
+        // Delete from database
+        const { error: dbDelError } = await supabase
+          .from('images')
+          .delete()
+          .in('path', pathsToDelete);
+        if (dbDelError) throw dbDelError;
+      }
+
+      // 3. Upload new image
+      const filePath = `${ADMIN_USER_ID}/${artworkId}/${Date.now()}_${file.name}`;
       const { error: uploadErr } = await supabase.storage
         .from('user_images')
         .upload(filePath, file, { upsert: true });
-
       if (uploadErr) throw uploadErr;
 
-      // ============ INSERT NEW RECORD ============
+      // 4. Insert new database record
       const { error: dbErr } = await supabase
         .from('images')
         .insert({ user_id: ADMIN_USER_ID, path: filePath });
-
       if (dbErr) throw dbErr;
 
-      // ============ UPDATE UI ============
-      const publicUrl = supabase.storage
-        .from('user_images')
-        .getPublicUrl(filePath).data.publicUrl;
-
+      // 5. Update UI
+      const publicUrl = supabase.storage.from('user_images').getPublicUrl(filePath).data.publicUrl;
       setArtworks(prev => ({ ...prev, [artworkId]: { image_url: publicUrl } }));
     } catch (err) {
       console.error('Upload failed:', err);
+      alert('Upload failed. Please try again.');
     } finally {
       setUploading(null);
-      e.target.value = ''; // reset input
+      e.target.value = '';
     }
   };
 
@@ -149,7 +171,8 @@ export default function GallerySkeleton() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {ARTWORKS.map((art) => {
-          const imageUrl = artworks[art.id]?.image_url;
+          const artworkData = artworks[art.id] || { image_url: null };
+          const imageUrl = artworkData.image_url;
 
           return (
             <div key={art.id} className="bg-gray-800 rounded-lg overflow-hidden flex flex-col">
@@ -159,6 +182,10 @@ export default function GallerySkeleton() {
                   src={imageUrl} 
                   alt={art.title} 
                   className="w-full h-64 object-cover"
+                  onError={(e) => {
+                    // Handle broken images
+                    (e.target as HTMLImageElement).src = '/placeholder-image.jpg';
+                  }}
                 />
               ) : (
                 <div className="w-full h-64 bg-gray-700 flex items-center justify-center">
