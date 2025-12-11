@@ -1,198 +1,291 @@
+// app/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 
-export default function AustinFoundationRepairPage() {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setSubmitStatus('idle');
+const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
 
-    // In a real app, this would POST to an API route or third-party CRM
-    // For demo, we simulate success
+const ARTWORKS = [
+  { 
+    id: 'hero-banner', 
+    title: 'Hero Banner',
+    prompt: 'A vibrant, inviting hero banner for "Boulder Bark & Co.", a local dog walking and pet care service in Boulder, Colorado. Show a joyful golden retriever running through a sunlit mountain trail with a smiling owner nearby. Clean, modern typography space at top-left for logo and tagline. Warm, earthy colors with pops of sky blue.'
+  },
+  { 
+    id: 'services-mosaic', 
+    title: 'Services Mosaic',
+    prompt: 'A clean 3-panel mosaic showing pet care services: top-left—grooming with a fluffy dog in a bathtub; top-right—dog walking on a leafy suburban street; bottom-center—pet sitting with a cozy living room and relaxed cat. Soft shadows, consistent lighting, neutral background to keep focus on pets. Professional yet friendly mood.'
+  },
+  { 
+    id: 'testimonial-bg', 
+    title: 'Testimonial Background',
+    prompt: 'A soft-focus background image for customer testimonials: blurred backyard with string lights at golden hour, shallow depth of field, warm bokeh. Should feel personal, trustworthy, and community-oriented—ideal for overlaying quote text. No people or animals in frame, just ambiance.'
+  },
+];
+
+type ArtworkState = { [key: string]: { image_url: string | null } };
+
+export default function HomePage() {
+  const [artworks, setArtworks] = useState<ArtworkState>({});
+  const [userId, setUserId] = useState<string | null>(null);
+  const [adminMode, setAdminMode] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const uid = session?.user.id || null;
+      setUserId(uid);
+      setAdminMode(uid === ADMIN_USER_ID);
+    };
+    checkUser();
+  }, []);
+
+  useEffect(() => {
+    const loadImages = async () => {
+      const { data: images } = await supabase
+        .from('images')
+        .select('path')
+        .eq('user_id', ADMIN_USER_ID);
+
+      const initialState: ArtworkState = {};
+      ARTWORKS.forEach(art => initialState[art.id] = { image_url: null });
+
+      if (images) {
+        ARTWORKS.forEach(art => {
+          const match = images.find(img => img.path.includes(`/${art.id}/`));
+          if (match) {
+            const url = supabase.storage
+              .from('user_images')
+              .getPublicUrl(match.path).data.publicUrl;
+            initialState[art.id] = { image_url: url };
+          }
+        });
+      }
+
+      setArtworks(initialState);
+    };
+
+    loadImages();
+  }, []);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, artworkId: string) => {
+    if (!adminMode) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(artworkId);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      setSubmitStatus('success');
-      (e.target as HTMLFormElement).reset();
-    } catch {
-      setSubmitStatus('error');
+      const filePath = `${ADMIN_USER_ID}/${artworkId}/${Date.now()}_${file.name}`;
+      
+      const { error: uploadErr } = await supabase.storage
+        .from('user_images')
+        .upload(filePath, file, { upsert: true });
+      if (uploadErr) throw uploadErr;
+
+      const { error: dbErr } = await supabase
+        .from('images')
+        .insert({ user_id: ADMIN_USER_ID, path: filePath });
+      if (dbErr) throw dbErr;
+
+      const publicUrl = supabase.storage.from('user_images').getPublicUrl(filePath).data.publicUrl;
+      setArtworks(prev => ({ ...prev, [artworkId]: { image_url: publicUrl } }));
+    } catch (err) {
+      console.error('Upload failed:', err);
     } finally {
-      setIsSubmitting(false);
+      setUploading(null);
+      e.target.value = '';
     }
   };
 
-  return (
-    <div className="font-sans bg-gray-50 text-gray-800">
-      {/* Hero */}
-      <header className="bg-gradient-to-r from-gray-900 to-gray-800 text-white">
-        <div className="container mx-auto px-4 py-12 md:py-16 text-center">
-          <h1 className="text-3xl md:text-5xl font-bold max-w-3xl mx-auto">
-            Trusted Foundation Repair in Austin — <span className="text-orange-400">Free Inspection</span>
-          </h1>
-          <p className="mt-4 text-lg max-w-2xl mx-auto opacity-90">
-            Licensed, insured, and BBB-accredited. Same-day assessments. 150+ homes stabilized since 2018.
-          </p>
-          <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
-            <a
-              href="tel:+15125550199"
-              className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-lg text-lg transition"
-            >
-              Call Now: (512) 555-0199
-            </a>
-            <a
-              href="#contact"
-              className="bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 text-white font-bold py-3 px-8 rounded-lg text-lg transition"
-            >
-              Get Free Estimate
-            </a>
-          </div>
-        </div>
-      </header>
+  const copyPrompt = (prompt: string, artworkId: string) => {
+    navigator.clipboard.writeText(prompt).then(() => {
+      setCopiedId(artworkId);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
 
-      {/* Trust Badges */}
-      <div className="bg-white py-4 border-b">
-        <div className="container mx-auto px-4 flex flex-wrap justify-center gap-6 text-sm text-gray-600">
-          <span className="flex items-center gap-1">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-            BBB Accredited
-          </span>
-          <span>✅ Licensed & Insured (TX #123456)</span>
-          <span>🏠 150+ Austin Homes Repaired</span>
-          <span>⏱️ Same-Day Inspections</span>
-        </div>
-      </div>
+  const heroImage = artworks['hero-banner']?.image_url || '';
+  const servicesImage = artworks['services-mosaic']?.image_url || '';
+  const testimonialBg = artworks['testimonial-bg']?.image_url || '';
+
+  return (
+    <div className="min-h-screen bg-white">
+      {/* Hero */}
+      <section className="relative">
+        {heroImage ? (
+          <img 
+            src={heroImage} 
+            alt="Boulder Bark & Co. — Trusted Pet Care in Boulder"
+            className="w-full h-[70vh] object-cover"
+          />
+        ) : (
+          <div className="w-full h-[70vh] bg-gradient-to-r from-amber-50 to-orange-50 flex items-center justify-center">
+            <div className="text-center max-w-2xl px-4">
+              <h1 className="text-4xl md:text-5xl font-bold text-gray-800 mb-4">
+                Boulder Bark & Co.
+              </h1>
+              <p className="text-xl text-gray-600 mb-6">
+                Loving, reliable pet care for busy Boulder families.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <a 
+                  href="tel:+13035550198" 
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-6 py-3 rounded-lg transition"
+                >
+                  Call Now: (303) 555-0198
+                </a>
+                <a 
+                  href="#services"
+                  className="border border-amber-600 text-amber-700 font-semibold px-6 py-3 rounded-lg hover:bg-amber-50 transition"
+                >
+                  Our Services
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {adminMode && (
+          <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm p-3 rounded shadow-md max-w-xs">
+            <p className="text-xs text-gray-600 mb-2">Hero Banner</p>
+            <button
+              onClick={() => copyPrompt(ARTWORKS.find(a => a.id === 'hero-banner')!.prompt, 'hero-banner')}
+              className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded mr-2"
+            >
+              {copiedId === 'hero-banner' ? 'Copied!' : 'Copy Prompt'}
+            </button>
+            <label className="text-xs bg-amber-600 text-white px-2 py-1 rounded cursor-pointer inline-block">
+              {uploading === 'hero-banner' ? 'Uploading…' : 'Upload'}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleUpload(e, 'hero-banner')}
+                className="hidden"
+              />
+            </label>
+          </div>
+        )}
+      </section>
 
       {/* Services */}
-      <section className="py-12 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="text-center max-w-2xl mx-auto mb-12">
-            <h2 className="text-3xl font-bold">Signs You Need Foundation Repair</h2>
-            <p className="mt-3 text-gray-600">
-              Ignoring these can lead to structural damage, plumbing leaks, and decreased home value.
-            </p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              'Cracks in walls or floors',
-              'Sticking doors/windows',
-              'Sloping or uneven floors',
-              'Gaps around door frames',
-              'Cracks in exterior brick',
-              'Pooling water near foundation',
-            ].map((item, i) => (
-              <div key={i} className="p-5 border border-gray-200 rounded-lg hover:shadow-md transition">
-                <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center mb-3">
-                  <span className="text-orange-600 font-bold">{i + 1}</span>
-                </div>
-                <h3 className="font-semibold">{item}</h3>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Before/After Gallery */}
-      <section className="py-12 bg-gray-50">
-        <div className="container mx-auto px-4">
-          <div className="text-center max-w-2xl mx-auto mb-12">
-            <h2 className="text-3xl font-bold">Real Austin Home Repairs</h2>
-            <p className="mt-3 text-gray-600">All work performed by our in-house team — no subcontractors.</p>
-          </div>
-          <div className="grid md:grid-cols-2 gap-6">
-            {[
-              { before: '/austin-foundation-repair/before-1.jpg', after: '/austin-foundation-repair/after-1.jpg', location: 'South Congress' },
-              { before: '/austin-foundation-repair/before-2.jpg', after: '/austin-foundation-repair/after-2.jpg', location: 'Cedar Park' },
-            ].map((project, i) => (
-              <div key={i} className="bg-white rounded-lg overflow-hidden shadow-sm">
-                <div className="grid grid-cols-2 h-48">
-                  <div className="relative">
-                    <img
-                      src={project.before}
-                      alt="Before repair"
-                      className="w-full h-full object-cover"
-                      loading={i === 0 ? 'eager' : 'lazy'}
-                    />
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-center py-1 text-sm">Before</div>
-                  </div>
-                  <div className="relative">
-                    <img
-                      src={project.after}
-                      alt="After repair"
-                      className="w-full h-full object-cover"
-                      loading={i === 0 ? 'eager' : 'lazy'}
-                    />
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-center py-1 text-sm">After</div>
-                  </div>
-                </div>
-                <div className="p-3 text-center text-gray-700 text-sm">{project.location}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA / Contact */}
-      <section id="contact" className="py-16 bg-gradient-to-r from-gray-800 to-gray-900 text-white">
-        <div className="container mx-auto px-4 max-w-4xl">
-          <div className="text-center mb-10">
-            <h2 className="text-3xl font-bold">Get Your Free Foundation Inspection</h2>
-            <p className="mt-3 opacity-90">Licensed engineer will assess your home — no obligation.</p>
-          </div>
-          {submitStatus === 'success' ? (
-            <div className="bg-green-900/30 border border-green-700 rounded-lg p-6 text-center">
-              <h3 className="text-xl font-bold text-green-300">Thank you!</h3>
-              <p>We’ll call you within 1 hour to schedule your free inspection.</p>
+      <section id="services" className="py-16 px-4 bg-gray-50">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-3xl font-bold text-center text-gray-800 mb-12">Our Pet Care Services</h2>
+          
+          {servicesImage ? (
+            <div className="rounded-xl overflow-hidden shadow-lg max-w-4xl mx-auto">
+              <img 
+                src={servicesImage} 
+                alt="Dog walking, grooming, and pet sitting services"
+                className="w-full"
+              />
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-4">
-              <input
-                type="text"
-                placeholder="Full Name"
-                required
-                className="px-4 py-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-              <input
-                type="tel"
-                placeholder="Phone (e.g. 512-555-0199)"
-                required
-                className="px-4 py-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-              <input
-                type="text"
-                placeholder="Address or Neighborhood"
-                required
-                className="px-4 py-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500 md:col-span-2"
-              />
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="md:col-span-2 bg-orange-500 hover:bg-orange-600 py-3 px-6 rounded-lg font-bold transition disabled:opacity-70"
-              >
-                {isSubmitting ? 'Sending...' : 'Request Free Inspection'}
-              </button>
-              {submitStatus === 'error' && (
-                <p className="md:col-span-2 text-red-300 text-center">Failed to send. Please try again.</p>
-              )}
-            </form>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+              {[
+                { title: 'Daily Dog Walking', desc: 'Reliable 30/60-min walks with GPS-tracked routes and photo updates.' },
+                { title: 'In-Home Pet Sitting', desc: 'Overnight or daily visits so your pets stay in their comfort zone.' },
+                { title: 'Spa Grooming', desc: 'Gentle baths, nail trims, and ear cleaning in a stress-free environment.' }
+              ].map((service, i) => (
+                <div key={i} className="bg-white p-6 rounded-lg shadow-md text-center">
+                  <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="text-2xl">🐾</span>
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-2">{service.title}</h3>
+                  <p className="text-gray-600">{service.desc}</p>
+                </div>
+              ))}
+            </div>
           )}
-          <div className="mt-8 text-center text-sm opacity-75">
-            📞 Prefer to call? <a href="tel:+15125550199" className="underline">Call (512) 555-0199</a> — we answer 24/7 for emergencies.
-          </div>
+
+          {adminMode && (
+            <div className="mt-6 bg-white/80 p-3 rounded border border-dashed border-amber-300 max-w-2xl mx-auto">
+              <p className="text-xs text-gray-600 mb-2">Services Mosaic</p>
+              <button
+                onClick={() => copyPrompt(ARTWORKS.find(a => a.id === 'services-mosaic')!.prompt, 'services-mosaic')}
+                className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded mr-2"
+              >
+                {copiedId === 'services-mosaic' ? 'Copied!' : 'Copy Prompt'}
+              </button>
+              <label className="text-xs bg-amber-600 text-white px-2 py-1 rounded cursor-pointer inline-block">
+                {uploading === 'services-mosaic' ? 'Uploading…' : 'Upload'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleUpload(e, 'services-mosaic')}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          )}
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 py-8 text-sm">
-        <div className="container mx-auto px-4 text-center">
-          <p>© {new Date().getFullYear()} Austin Foundation Repair Pros. Licensed in Texas (#123456). BBB Accredited.</p>
-          <p className="mt-2">Serving Austin, Round Rock, Cedar Park, and Pflugerville since 2018.</p>
+      {/* Testimonials */}
+      <section className="py-16 px-4 relative">
+        <div 
+          className="absolute inset-0 z-0 opacity-10"
+          style={testimonialBg ? { backgroundImage: `url(${testimonialBg})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+        ></div>
+        <div className="max-w-4xl mx-auto relative z-10 bg-white/90 backdrop-blur-sm p-8 rounded-xl shadow-lg">
+          <blockquote className="text-center">
+            <p className="text-xl italic text-gray-700 mb-6">
+              "Boulder Bark & Co. has been a lifesaver! My anxious rescue dog actually wags his tail when they arrive. Their communication is top-notch—photos, updates, and always on time."
+            </p>
+            <footer className="text-gray-600 font-medium">— Sarah T., Boulder</footer>
+          </blockquote>
         </div>
-      </footer>
+
+        {adminMode && (
+          <div className="mt-6 max-w-2xl mx-auto bg-white/80 p-3 rounded border border-dashed border-gray-300">
+            <p className="text-xs text-gray-600 mb-2">Testimonial Background</p>
+            <button
+              onClick={() => copyPrompt(ARTWORKS.find(a => a.id === 'testimonial-bg')!.prompt, 'testimonial-bg')}
+              className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded mr-2"
+            >
+              {copiedId === 'testimonial-bg' ? 'Copied!' : 'Copy Prompt'}
+            </button>
+            <label className="text-xs bg-gray-700 text-white px-2 py-1 rounded cursor-pointer inline-block">
+              {uploading === 'testimonial-bg' ? 'Uploading…' : 'Upload'}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleUpload(e, 'testimonial-bg')}
+                className="hidden"
+              />
+            </label>
+          </div>
+        )}
+      </section>
+
+      {/* CTA */}
+      <section className="py-16 px-4 bg-amber-600 text-white text-center">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-3xl font-bold mb-4">Ready to Give Your Pet the Care They Deserve?</h2>
+          <p className="text-xl mb-8">Serving Boulder, Louisville, and Lafayette with love since 2018.</p>
+          <a 
+            href="tel:+13035550198" 
+            className="bg-white text-amber-700 hover:bg-gray-100 font-bold text-lg px-8 py-4 rounded-lg inline-block transition"
+          >
+            Call (303) 555-0198 to Book Today
+          </a>
+          <p className="mt-4 text-amber-100 text-sm">Free consultation • Fully insured • Bonded & background-checked</p>
+        </div>
+      </section>
+
+      {adminMode && (
+        <div className="fixed bottom-4 right-4 bg-purple-700 text-white px-4 py-2 rounded-lg shadow-lg text-sm">
+          👤 Admin Mode: Upload custom images for this page
+        </div>
+      )}
     </div>
   );
 }
