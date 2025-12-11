@@ -162,37 +162,42 @@ function PetGallery() {
                 </div>
 
                 {adminMode && (
-                  <div className="p-4 border-t border-amber-100 bg-amber-50/50">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <button
-                        onClick={() => copyPrompt(item.prompt, item.id)}
-                        className="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-md transition-colors flex items-center"
-                        type="button"
-                      >
-                        {copiedId === item.id ? (
-                          <span className="flex items-center">
-                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                            </svg>
-                            Copied!
-                          </span>
-                        ) : (
-                          'Copy Prompt'
-                        )}
-                      </button>
-                      
-                      <label className="block text-sm bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-md cursor-pointer transition-colors text-center whitespace-nowrap">
-                        {uploading === item.id ? 'Uploading…' : 'Upload Photo'}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => handleUpload(e, item.id)}
-                          className="hidden"
-                        />
-                      </label>
-                    </div>
-                  </div>
-                )}
+  <div className="p-4 border-t border-amber-100 bg-amber-50/50">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      {/* 👇 Add this to show the prompt */}
+      <div className="text-xs text-amber-800 bg-amber-100 p-2 rounded-md max-w-full break-words">
+        {item.prompt}
+      </div>
+
+      <button
+        onClick={() => copyPrompt(item.prompt, item.id)}
+        className="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-md transition-colors flex items-center"
+        type="button"
+      >
+        {copiedId === item.id ? (
+          <span className="flex items-center">
+            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+            </svg>
+            Copied!
+          </span>
+        ) : (
+          'Copy Prompt'
+        )}
+      </button>
+      
+      <label className="block text-sm bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-md cursor-pointer transition-colors text-center whitespace-nowrap">
+        {uploading === item.id ? 'Uploading…' : 'Upload Photo'}
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => handleUpload(e, item.id)}
+          className="hidden"
+        />
+      </label>
+    </div>
+  </div>
+)}
 
                 <div className="p-5">
                   <h3 className="text-xl font-bold text-gray-900 mb-2">{item.title}</h3>
