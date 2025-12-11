@@ -3,13 +3,20 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Heart, Phone, MapPin, Calendar, CheckCircle, Star, ChevronRight, Users, Shield, PawPrint } from 'lucide-react';
-import Image from 'next/image';
 
-// Supabase setup
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// ENVIRONMENT VALIDATION — Do NOT create client at top level
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !key) {
+    throw new Error(
+      'Missing environment variables: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set.'
+    );
+  }
+
+  return createClient(url, key);
+}
 
 const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
 
@@ -82,6 +89,7 @@ export default function CascadeCanineRescue() {
 
   useEffect(() => {
     const checkUser = async () => {
+      const supabase = getSupabaseClient();
       const { data: { session } } = await supabase.auth.getSession();
       const uid = session?.user.id || null;
       setUserId(uid);
@@ -92,6 +100,7 @@ export default function CascadeCanineRescue() {
 
   useEffect(() => {
     const loadImages = async () => {
+      const supabase = getSupabaseClient();
       const { data: images } = await supabase
         .from('images')
         .select('path')
@@ -123,6 +132,7 @@ export default function CascadeCanineRescue() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const supabase = getSupabaseClient();
     setUploading(dogId);
     try {
       const filePath = `${ADMIN_USER_ID}/${dogId}/${Date.now()}_${file.name}`;
@@ -156,7 +166,6 @@ export default function CascadeCanineRescue() {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // In production, this would submit to your backend
     alert('Thank you for your application! We\'ll contact you within 24 hours.');
     setApplicationOpen(false);
     setFormData({ name: '', email: '', phone: '', dogInterest: '', experience: '', homeType: '' });

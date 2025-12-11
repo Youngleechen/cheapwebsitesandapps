@@ -4,11 +4,19 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 
-// GallerySkeleton as provided (slightly refactored for reuse)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// ✅ Deferred and safe Supabase client creation
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !key) {
+    throw new Error(
+      'Missing environment variables: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set.'
+    );
+  }
+
+  return createClient(url, key);
+}
 
 const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
 const GALLERY_PREFIX = 'gallery';
@@ -45,6 +53,7 @@ function GallerySkeleton() {
 
   useEffect(() => {
     const checkUser = async () => {
+      const supabase = getSupabaseClient(); // ✅ Safe: called in effect
       const { data: { session } } = await supabase.auth.getSession();
       const uid = session?.user.id || null;
       setUserId(uid);
@@ -55,6 +64,7 @@ function GallerySkeleton() {
 
   useEffect(() => {
     const loadImages = async () => {
+      const supabase = getSupabaseClient(); // ✅
       const { data: images, error } = await supabase
         .from('images')
         .select('path, created_at')
@@ -104,6 +114,7 @@ function GallerySkeleton() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const supabase = getSupabaseClient(); // ✅
     setUploading(artworkId);
     try {
       const folderPath = `${ADMIN_USER_ID}/${GALLERY_PREFIX}/${artworkId}/`;

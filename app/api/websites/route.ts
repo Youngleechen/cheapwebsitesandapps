@@ -4,13 +4,14 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
-// Optional: Exclude utility/demo folders
 const EXCLUDED_FOLDERS = new Set([
   'gallery-skeleton',
-  'layout',
-  'not-found',
   'components',
   'hooks',
+  'layout',
+  'not-found',
+  'error',
+  'api',
 ]);
 
 export async function GET() {
@@ -35,32 +36,39 @@ export async function GET() {
     for (const id of folders) {
       const pagePath = path.join(websitesDir, id, 'page.tsx');
 
-      // Fallback title/description from folder name
+      // Default: derive from folder name
       let title = id
         .replace(/-/g, ' ')
-        .replace(/\b\w/g, (char) => char.toUpperCase());
-      let description = `A professional small business website for ${id.replace(/-/g, ' ')}.`;
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+      let description = `Professional website for ${title}.`;
 
       if (fs.existsSync(pagePath)) {
-        const content = fs.readFileSync(pagePath, 'utf-8');
+        const content = fs.readFileSync(pagePath, 'utf8');
 
-        // Extract title (looks for `title: "..."` inside metadata or standalone)
-        const titleMatch = content.match(/title\s*:\s*['"`]([^'"`]*?)['"`]/);
-        if (titleMatch && titleMatch[1].trim()) {
-          title = titleMatch[1].trim();
-        }
+        // Try to extract metadata object as a whole (multiline-safe)
+        const metadataMatch = content.match(/export\s+const\s+metadata\s*=\s*(\{[^]*?\});?\s*(?:\n|$)/);
+        if (metadataMatch) {
+          const metadataStr = metadataMatch[1];
 
-        // Extract description (looks for `description: "..."`)
-        const descMatch = content.match(/description\s*:\s*['"`]([^'"`]*?)['"`]/);
-        if (descMatch && descMatch[1].trim()) {
-          description = descMatch[1].trim();
+          // Extract title
+          const titleMatch = metadataStr.match(/title\s*:\s*['"`]([^'"`]*?)['"`]/);
+          if (titleMatch) title = titleMatch[1].trim();
+
+          // Extract description
+          const descMatch = metadataStr.match(/description\s*:\s*['"`]([^'"`]*?)['"`]/);
+          if (descMatch) description = descMatch[1].trim();
         }
+      }
+
+      // Optional: warn in dev if description is generic
+      if (process.env.NODE_ENV === 'development' && description.includes('Professional website for')) {
+        console.warn(`⚠️ Missing custom description in websites/${id}/page.tsx`);
       }
 
       websites.push({
         id,
         title,
-        prompt: description, // "prompt" for consistency with admin gallery
+        prompt: description,
       });
     }
 
