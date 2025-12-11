@@ -1,11 +1,3 @@
-// app/websites/gallery-skeleton/page.tsx
-
-export const metadata = {
-  title: 'AI Art Gallery — CheapWebsites & Apps',
-  description:
-    'Explore a dynamic gallery of AI-generated artwork prompts and previews. Built as a demo for creative teams using CheapWebsites & Apps — where powerful templates meet simple editing.',
-};
-
 'use client';
 
 import { useState, useEffect } from 'react';
