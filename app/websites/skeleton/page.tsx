@@ -85,24 +85,54 @@ export default function GallerySkeleton() {
     setUploading(artworkId);
     try {
       const filePath = `${ADMIN_USER_ID}/${artworkId}/${Date.now()}_${file.name}`;
-      
+
+      // ============ OPTIONAL: Clean up old storage files ============
+      // Uncomment this block if you want to delete old files from storage
+      /*
+      const { data: existingList } = await supabase.storage
+        .from('user_images')
+        .list(`${ADMIN_USER_ID}/${artworkId}/`);
+
+      if (existingList && existingList.length > 0) {
+        const pathsToDelete = existingList.map(f => `${ADMIN_USER_ID}/${artworkId}/${f.name}`);
+        await supabase.storage.from('user_images').remove(pathsToDelete);
+      }
+      */
+
+      // ============ DELETE OLD DATABASE RECORD ============
+      const { error: deleteErr } = await supabase
+        .from('images')
+        .delete()
+        .eq('user_id', ADMIN_USER_ID)
+        .like('path', `%/${artworkId}/%`);
+
+      if (deleteErr) throw deleteErr;
+
+      // ============ UPLOAD NEW FILE ============
       const { error: uploadErr } = await supabase.storage
         .from('user_images')
         .upload(filePath, file, { upsert: true });
+
       if (uploadErr) throw uploadErr;
 
+      // ============ INSERT NEW RECORD ============
       const { error: dbErr } = await supabase
         .from('images')
         .insert({ user_id: ADMIN_USER_ID, path: filePath });
+
       if (dbErr) throw dbErr;
 
-      const publicUrl = supabase.storage.from('user_images').getPublicUrl(filePath).data.publicUrl;
+      // ============ UPDATE UI ============
+      const publicUrl = supabase.storage
+        .from('user_images')
+        .getPublicUrl(filePath).data.publicUrl;
+
       setArtworks(prev => ({ ...prev, [artworkId]: { image_url: publicUrl } }));
     } catch (err) {
       console.error('Upload failed:', err);
     } finally {
       setUploading(null);
-      e.target.value = '';
+      e.target.value = ''; // reset input
     }
   };
 
