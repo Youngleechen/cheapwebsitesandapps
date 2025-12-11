@@ -30,6 +30,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-, "app/websites/fireplace-artisans/page.tdsx", "app/websites/skeleton/page.tdsx"  ],
+, "app/websites/fireplace-artisans/page.tsx", "app/websites/skeleton/page.tdsx"  ],
   "exclude": ["node_modules"]
 }
