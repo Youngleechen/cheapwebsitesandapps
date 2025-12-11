@@ -1,181 +1,175 @@
-// app/test-upload/page.tsx
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
-// Helper to create Supabase client on the client side
-function getSupabaseClient() {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    throw new Error('Missing Supabase env vars');
-  }
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
+// Define types for better TypeScript safety
+interface PhotoDb {
+  id: string;
+  user_id: string;
+  image_path: string;
+  created_at: string;
 }
 
-export default function TestUploadPage() {
-  const [loading, setLoading] = useState(false);
-  const [images, setImages] = useState<{ id: string; image_url: string; title?: string }[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
+interface PhotoWithUrl extends PhotoDb {
+  signedUrl?: string;
+}
 
-  // Fetch existing uploads on mount
+export default function ImageUploader() {
+  const [photos, setPhotos] = useState<PhotoWithUrl[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const supabase = createClientComponentClient();
+
+  // Fetch user's photos on component mount
   useEffect(() => {
-    const fetchImages = async () => {
-      const supabase = getSupabaseClient();
-      const { data: session } = await supabase.auth.getSession();
-      if (!session.session) {
-        router.push('/auth/signin');
+    const fetchPhotos = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.warn('No authenticated user. Redirect or show login.');
         return;
       }
 
       const { data, error } = await supabase
-        .from('test_uploads')
-        .select('id, image_url, title, created_at, user_id') // <-- updated columns
+        .from('photos')
+        .select('id, image_path')
+        .eq('user_id', user.id)
+        .returns<PhotoDb[]>() // ✅ Explicitly type Supabase response
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Fetch error:', error);
-        setError('Failed to load some images');
-      } else {
-        setImages(data || []);
+        console.error('Error fetching photos:', error);
+        return;
       }
+
+      // Generate signed URLs for each image
+      const photosWithUrls = await Promise.all(
+        (data || []).map(async (photo) => {
+          const { data: signedData } = await supabase.storage
+            .from('user_images')
+            .createSignedUrl(photo.image_path, 3600); // URL valid for 1 hour
+          return {
+            ...photo,
+            signedUrl: signedData?.signedUrl,
+          };
+        })
+      );
+
+      setPhotos(photosWithUrls);
     };
 
-    fetchImages();
-  }, [router]);
+    fetchPhotos();
+  }, [supabase]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUploading(true);
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      setError('Please upload an image file (jpg, png, etc.)');
+    if (!file) {
+      setUploading(false);
       return;
     }
 
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    const supabase = getSupabaseClient();
-    const filename = `${Date.now()}-${file.name}`;
-
-    try {
-      // Upload to bucket
-      const { error: uploadError } = await supabase.storage
-        .from('test-images')
-        .upload(filename, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: publicUrlData } = supabase.storage
-        .from('test-images')
-        .getPublicUrl(filename);
-
-      const publicUrl = publicUrlData.publicUrl;
-
-      // Get current user ID
-      const { data: session } = await supabase.auth.getSession();
-      const userId = session.session?.user.id;
-
-      // Save to DB with correct column names
-      const { error: dbError } = await supabase
-        .from('test_uploads')
-        .insert({
-          image_url: publicUrl, // <-- changed from "url" to "image_url"
-          title: file.name,     // optional: you can make this editable later
-          user_id: userId,      // important for RLS and ownership
-        });
-
-      if (dbError) throw dbError;
-
-      // Add to UI instantly
-      setImages((prev) => [
-        {
-          id: filename,
-          image_url: publicUrl,
-          title: file.name, // optional
-        },
-        ...prev,
-      ]);
-      setSuccess('Image uploaded successfully!');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    } catch (err: any) {
-      console.error('Upload error:', err);
-      setError(err.message || 'Upload failed. Check bucket permissions and table schema.');
-    } finally {
-      setLoading(false);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      alert('You must be signed in to upload images.');
+      setUploading(false);
+      return;
     }
+
+    // Generate unique file path: user_id/timestamp-filename
+    const fileName = `${user.id}/${Date.now()}-${file.name}`;
+
+    // Upload to Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from('user_images')
+      .upload(fileName, file);
+
+    if (uploadError) {
+      console.error('Upload failed:', uploadError);
+      alert('Failed to upload image.');
+      setUploading(false);
+      return;
+    }
+
+    // Save metadata to database
+    const { error: dbError } = await supabase
+      .from('photos')
+      .insert({
+        user_id: user.id,
+        image_path: fileName,
+      });
+
+    if (dbError) {
+      console.error('Database insert failed:', dbError);
+      alert('Failed to save image record.');
+      setUploading(false);
+      return;
+    }
+
+    // Immediately generate signed URL and update UI without full refetch
+    const { data: signedData } = await supabase.storage
+      .from('user_images')
+      .createSignedUrl(fileName, 3600);
+
+    setPhotos((prev) => [
+      {
+        id: crypto.randomUUID(), // Temporary ID for UI; real ID comes from DB if needed
+        user_id: user.id,
+        image_path: fileName,
+        created_at: new Date().toISOString(),
+        signedUrl: signedData?.signedUrl,
+      },
+      ...prev,
+    ]);
+
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setUploading(false);
   };
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
-      <h1>📸 Test Image Upload</h1>
-      <p>Upload images to test your Supabase bucket and database.</p>
+    <div style={{ padding: '1.5rem', maxWidth: '800px', margin: '0 auto' }}>
+      <h1>Car Image Gallery</h1>
+      <p>Upload and view your images securely.</p>
 
-      {error && <div style={{ color: 'red', marginTop: '1rem' }}>{error}</div>}
-      {success && <div style={{ color: 'green', marginTop: '1rem' }}>{success}</div>}
+      <input
+        type="file"
+        accept="image/*"
+        onChange={handleUpload}
+        ref={fileInputRef}
+        disabled={uploading}
+        style={{ marginBottom: '1.5rem', padding: '0.5rem' }}
+      />
+      {uploading && <p>Uploading image...</p>}
 
-      <div style={{ marginTop: '1.5rem' }}>
-        <label
-          htmlFor="file-upload"
-          style={{
-            display: 'inline-block',
-            padding: '0.75rem 1.5rem',
-            backgroundColor: '#3b82f6',
-            color: 'white',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '1rem',
-          }}
-        >
-          {loading ? 'Uploading...' : 'Choose Image'}
-        </label>
-        <input
-          id="file-upload"
-          type="file"
-          accept="image/*"
-          onChange={handleUpload}
-          ref={fileInputRef}
-          style={{ display: 'none' }}
-          disabled={loading}
-        />
-      </div>
-
-      {/* Display uploaded images */}
-      <div style={{ marginTop: '2rem' }}>
-        <h2>Uploaded Images</h2>
-        {images.length === 0 ? (
-          <p>No images uploaded yet.</p>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
-            {images.map((img) => (
-              <div key={img.id} style={{ border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden' }}>
-                <img
-                  src={img.image_url} // <-- updated from img.url
-                  alt={img.title || 'Uploaded image'}
-                  style={{ width: '100%', height: '150px', objectFit: 'cover' }}
-                />
-                {img.title && (
-                  <div style={{ padding: '0.8rem', fontSize: '0.8rem', textAlign: 'center' }}>
-                    {img.title}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+          gap: '1rem',
+        }}
+      >
+        {photos.map((photo) =>
+          photo.signedUrl ? (
+            <div key={photo.id} style={{ borderRadius: '8px', overflow: 'hidden' }}>
+              <img
+                src={photo.signedUrl}
+                alt="Uploaded car"
+                style={{
+                  width: '100%',
+                  height: '150px',
+                  objectFit: 'cover',
+                  display: 'block',
+                }}
+              />
+            </div>
+          ) : null
         )}
       </div>
+
+      {photos.length === 0 && !uploading && (
+        <p>No images uploaded yet.</p>
+      )}
     </div>
   );
 }
