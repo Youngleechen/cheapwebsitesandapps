@@ -33,9 +33,8 @@ export default function ImagesPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch images on mount (no auth required for viewing)
+  // Fetch all images (publicly visible)
   useEffect(() => {
-    // If env vars are missing, show config error
     if (!supabaseUrl || !supabaseAnonKey) {
       setError(
         'Supabase configuration error. Check .env.local for NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY'
@@ -50,6 +49,7 @@ export default function ImagesPage() {
   async function fetchImages() {
     setIsLoading(true);
     try {
+      // Fetch ALL images — no user filter
       const { data, error } = await supabase
         .from('images')
         .select('id, path, created_at')
@@ -64,7 +64,7 @@ export default function ImagesPage() {
       }
     } catch (err) {
       console.error('Unexpected fetch error:', err);
-      setError('An unexpected error occurred');
+      setError('An unexpected error occurred while loading images.');
       setImages([]);
     } finally {
       setIsLoading(false);
@@ -84,18 +84,19 @@ export default function ImagesPage() {
         throw new Error('You must be logged in to upload images');
       }
 
-      // Generate unique filename
       const fileExt = file.name.split('.').pop();
+      if (!fileExt) throw new Error('Invalid file type');
+
       const fileName = `${session.user.id}/${crypto.randomUUID()}.${fileExt}`;
 
-      // 1. Upload to storage
+      // Upload to storage
       const { error: uploadError } = await supabase.storage
         .from('user_images')
-        .upload(fileName, file);
+        .upload(fileName, file, { upsert: false });
 
       if (uploadError) throw uploadError;
 
-      // 2. Insert into database
+      // Insert into DB — include user_id for ownership (but not used in reads)
       const { error: dbError } = await supabase.from('images').insert({
         user_id: session.user.id,
         path: fileName,
@@ -103,7 +104,7 @@ export default function ImagesPage() {
 
       if (dbError) throw dbError;
 
-      // Refresh images
+      // Refresh list
       await fetchImages();
       setFile(null);
     } catch (err) {
@@ -118,7 +119,7 @@ export default function ImagesPage() {
     }
   }
 
-  // Show environment error if present
+  // Handle missing env vars
   if (!supabaseUrl || !supabaseAnonKey) {
     return (
       <div className="max-w-4xl mx-auto p-6 bg-red-50 text-red-700 rounded">
@@ -141,7 +142,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key`}
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-6">Image Gallery</h1>
+      <h1 className="text-2xl font-bold mb-6">Public Image Gallery</h1>
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 text-red-700 rounded">
@@ -155,7 +156,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key`}
         </div>
       ) : (
         <>
-          {/* Upload Section (visible to all, but upload requires login) */}
+          {/* Upload Section — only works if logged in */}
           <div className="mb-8 p-4 border rounded-lg">
             <input
               type="file"
@@ -174,46 +175,49 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key`}
             >
               {uploading ? 'Uploading...' : 'Upload Image'}
             </button>
-          </div>
-
-          {/* Images Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {images.map((image) => {
-              const { data: { publicUrl } } = supabase.storage
-                .from('user_images')
-                .getPublicUrl(image.path);
-
-              return (
-                <div
-                  key={image.id}
-                  className="border rounded-lg overflow-hidden shadow-sm"
-                >
-                  <img
-                    src={publicUrl}
-                    alt={`Uploaded ${new Date(image.created_at).toLocaleString()}`}
-                    className="w-full h-48 object-cover"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                      const next = target.nextElementSibling;
-                      if (next) next.classList.remove('hidden');
-                    }}
-                  />
-                  <div className="p-3">
-                    <p className="text-sm text-gray-500">
-                      {new Date(image.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {images.length === 0 && !isLoading && (
-            <p className="text-center text-gray-500 mt-8">
-              No images uploaded yet
+            <p className="text-sm text-gray-500 mt-2">
+              Note: You must be logged in to upload.
             </p>
-          )}
+          </div>
+
+          {/* Public Image Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {images.length > 0 ? (
+              images.map((image) => {
+                const { data: { publicUrl } } = supabase.storage
+                  .from('user_images')
+                  .getPublicUrl(image.path);
+
+                return (
+                  <div
+                    key={image.id}
+                    className="border rounded-lg overflow-hidden shadow-sm"
+                  >
+                    <img
+                      src={publicUrl}
+                      alt={`Uploaded on ${new Date(image.created_at).toLocaleDateString()}`}
+                      className="w-full h-48 object-cover"
+                      onError={(e) => {
+                        const img = e.target as HTMLImageElement;
+                        img.style.display = 'none';
+                        const fallback = img.nextElementSibling;
+                        if (fallback) fallback.classList.remove('hidden');
+                      }}
+                    />
+                    <div className="p-3">
+                      <p className="text-xs text-gray-500">
+                        {new Date(image.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="col-span-3 text-center text-gray-500">
+                No images uploaded yet.
+              </p>
+            )}
+          </div>
         </>
       )}
     </div>
