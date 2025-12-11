@@ -9,6 +9,7 @@ const supabase = createClient(
 );
 
 const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
+const GALLERY_PREFIX = 'gallery'; // Dedicated identifier for gallery images
 
 const ARTWORKS = [
   { 
@@ -49,11 +50,12 @@ export default function GallerySkeleton() {
 
   useEffect(() => {
     const loadImages = async () => {
-      // Fetch ALL images for admin, ordered by created_at DESC
+      // Fetch ONLY gallery images for admin
       const { data: images, error } = await supabase
         .from('images')
         .select('path, created_at')
         .eq('user_id', ADMIN_USER_ID)
+        .like('path', `${ADMIN_USER_ID}/${GALLERY_PREFIX}/%`) // Critical filter
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -67,19 +69,19 @@ export default function GallerySkeleton() {
       if (images) {
         const latestImagePerArtwork: Record<string, string> = {};
 
-        // Since ordered by created_at DESC, first occurrence of an artwork ID is the latest
         for (const img of images) {
           const pathParts = img.path.split('/');
-          if (pathParts.length >= 3) {
-            const artId = pathParts[1];
-            // Only set if we haven't recorded this artwork yet (ensures latest)
+          // Path structure: [user_id, gallery_prefix, artwork_id, filename]
+          if (pathParts.length >= 4 && pathParts[1] === GALLERY_PREFIX) {
+            const artId = pathParts[2];
+            // Only consider defined artworks and take the latest
             if (ARTWORKS.some(a => a.id === artId) && !latestImagePerArtwork[artId]) {
               latestImagePerArtwork[artId] = img.path;
             }
           }
         }
 
-        // Build final state
+        // Build final state with only relevant artworks
         ARTWORKS.forEach(art => {
           if (latestImagePerArtwork[art.id]) {
             const url = supabase.storage
@@ -103,10 +105,10 @@ export default function GallerySkeleton() {
 
     setUploading(artworkId);
     try {
-      const folderPath = `${ADMIN_USER_ID}/${artworkId}/`;
+      // New path structure with gallery identifier
+      const folderPath = `${ADMIN_USER_ID}/${GALLERY_PREFIX}/${artworkId}/`;
 
-      // Optional: You can keep the cleanup logic, but it's not strictly needed
-      // if you always use latest by timestamp—but we'll keep it for storage hygiene
+      // Clean up OLD gallery images for this artwork
       const { data: existingImages } = await supabase
         .from('images')
         .select('path')
@@ -115,19 +117,14 @@ export default function GallerySkeleton() {
 
       if (existingImages && existingImages.length > 0) {
         const pathsToDelete = existingImages.map(img => img.path);
-        const { error: storageDelError } = await supabase.storage
-          .from('user_images')
-          .remove(pathsToDelete);
-        if (storageDelError) throw storageDelError;
-
-        const { error: dbDelError } = await supabase
-          .from('images')
-          .delete()
-          .in('path', pathsToDelete);
-        if (dbDelError) throw dbDelError;
+        await Promise.all([
+          supabase.storage.from('user_images').remove(pathsToDelete),
+          supabase.from('images').delete().in('path', pathsToDelete)
+        ]);
       }
 
-      const filePath = `${ADMIN_USER_ID}/${artworkId}/${Date.now()}_${file.name}`;
+      // Upload new image with gallery prefix
+      const filePath = `${folderPath}${Date.now()}_${file.name}`;
       const { error: uploadErr } = await supabase.storage
         .from('user_images')
         .upload(filePath, file, { upsert: true });

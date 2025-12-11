@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import Link from 'next/link';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,34 +14,44 @@ const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
 const ARTWORKS = [
   { 
     id: 'midnight-garden', 
-    title: 'Hero Banner',
-    prompt: 'A golden retriever mix puppy curled up in soft hay inside a rustic barn at dawn, sunlight streaming through dusty windows, conveying safety and hope. Warm tones, shallow depth of field.'
+    title: 'Emergency Storm Cleanup',
+    prompt: 'A dramatic dusk scene of professional arborists using rigging and cranes to safely remove a massive oak limb that fell across a suburban driveway during a storm. Wet pavement reflects emergency lights; focus on precision and calm under pressure.'
   },
   { 
     id: 'neon-dreams', 
-    title: 'Adoptable Dogs',
-    prompt: 'A joyful collage of three adoptable rescue dogs (a senior beagle, a scruffy terrier mix, and a shy pit bull) in a sunlit Asheville backyard with mountains in the distance. Natural lighting, candid expressions.'
+    title: 'Precision Tree Trimming',
+    prompt: 'Sun-dappled close-up of a certified arborist making a clean pruning cut on a mature Japanese maple in an upscale Asheville garden. Show healthy branching structure, sharp tools, and attention to detail—no leaves on ground.'
   },
   { 
     id: 'ocean-memory', 
-    title: 'Our Mission',
-    prompt: 'Abstract but warm composition: overlapping hands gently holding a small dog, blurred background of volunteers at a rural foster home. Use soft focus and amber tones to evoke compassion and community.'
+    title: 'Stump Grinding & Site Restoration',
+    prompt: 'Before-and-after style: left shows raw stump in grass, right shows smooth, seeded lawn with wood chips neatly bagged. Early morning light, dew on grass—emphasize cleanliness and care.'
   },
 ];
 
 type ArtworkState = { [key: string]: { image_url: string | null } };
 
-export default function PawprintRescuePage() {
+export default function HomePage() {
   const [artworks, setArtworks] = useState<ArtworkState>({});
   const [userId, setUserId] = useState<string | null>(null);
   const [adminMode, setAdminMode] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 50);
+    window.addEventListener('scroll', handleTick);
+    function handleTick() {
+      requestAnimationFrame(handleScroll);
+    }
+    return () => window.removeEventListener('scroll', handleTick);
+  }, []);
 
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      const uid = session?.user.id || null;
+      const uid = session?.user?.id || null;
       setUserId(uid);
       setAdminMode(uid === ADMIN_USER_ID);
     };
@@ -105,7 +116,7 @@ export default function PawprintRescuePage() {
         .eq('user_id', ADMIN_USER_ID)
         .like('path', `${folderPath}%`);
 
-      if (existingImages?.length) {
+      if (existingImages && existingImages.length > 0) {
         const pathsToDelete = existingImages.map(img => img.path);
         await supabase.storage.from('user_images').remove(pathsToDelete);
         await supabase.from('images').delete().in('path', pathsToDelete);
@@ -140,196 +151,150 @@ export default function PawprintRescuePage() {
     });
   };
 
-  const heroImage = artworks['midnight-garden']?.image_url || '/placeholder-hero.jpg';
-  const adoptableImage = artworks['neon-dreams']?.image_url || '/placeholder-adopt.jpg';
-  const missionImage = artworks['ocean-memory']?.image_url || '/placeholder-mission.jpg';
+  const imageUrl = (id: string) => {
+    return artworks[id]?.image_url || '/placeholder-tree.jpg';
+  };
 
   return (
-    <div className="font-sans text-gray-800 antialiased">
-      {/* Hero Section */}
-      <section className="relative w-full h-screen max-h-[800px] overflow-hidden">
-        <div 
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat z-0"
-          style={{ backgroundImage: `url(${heroImage})` }}
-        />
-        <div className="absolute inset-0 bg-black/50 z-10" />
-        <div className="relative z-20 flex flex-col items-center justify-center h-full text-center text-white px-4">
-          <h1 className="text-4xl md:text-6xl font-bold max-w-3xl leading-tight">
-            Every Dog Deserves a Second Chance
-          </h1>
-          <p className="mt-4 text-lg md:text-xl max-w-2xl opacity-90">
-            Pawprint Rescue saves at-risk dogs across Western North Carolina — one loving home at a time.
-          </p>
-          <div className="mt-8 flex flex-col sm:flex-row gap-4">
-            <a
-              href="#adopt"
-              className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg shadow-md transition"
+    <div className="font-sans bg-gradient-to-b from-amber-50 to-white text-gray-800">
+      {/* Sticky CTA Bar */}
+      {scrolled && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-amber-600 text-white py-2 px-4 shadow-lg">
+          <div className="max-w-6xl mx-auto flex justify-between items-center text-sm">
+            <span className="font-semibold">🌳 Same-Day Emergency Service</span>
+            <a 
+              href="tel:+18285550198" 
+              className="bg-white text-amber-700 px-4 py-1 rounded-full font-bold hover:bg-amber-100 transition"
             >
-              Meet Our Dogs
-            </a>
-            <a
-              href="#donate"
-              className="px-6 py-3 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white font-semibold rounded-lg border border-white/30 transition"
-            >
-              Support Our Mission
+              Call Now: (828) 555-0198
             </a>
           </div>
-        </div>
-        {adminMode && (
-          <div className="absolute top-4 right-4 bg-purple-600 text-white px-3 py-1 rounded text-sm">
-            Admin: Hero Image
-          </div>
-        )}
-      </section>
-
-      {/* Who We Are */}
-      <section className="py-16 px-4 bg-white">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          <div>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">Based in Asheville. Saving Lives Since 2017.</h2>
-            <p className="text-lg text-gray-600 mb-4">
-              We rescue dogs from high-kill shelters, hoarding situations, and medical emergencies across Buncombe, Haywood, and Madison counties.
-            </p>
-            <p className="text-lg text-gray-600 mb-6">
-              Every dog receives vet care, behavioral support, and foster love before finding their forever family.
-            </p>
-            <div className="flex flex-wrap gap-4">
-              <div className="flex items-center">
-                <span className="text-2xl font-bold text-amber-600">500+</span>
-                <span className="ml-2 text-gray-600">Dogs Saved</span>
-              </div>
-              <div className="flex items-center">
-                <span className="text-2xl font-bold text-amber-600">98%</span>
-                <span className="ml-2 text-gray-600">Adoption Success</span>
-              </div>
-            </div>
-          </div>
-          <div className="relative rounded-xl overflow-hidden shadow-xl border border-gray-200">
-            <img
-              src={missionImage}
-              alt="Volunteers caring for rescue dogs"
-              className="w-full h-auto object-cover"
-              onError={(e) => (e.currentTarget.src = '/placeholder-mission.jpg')}
-            />
-            {adminMode && (
-              <div className="absolute top-2 right-2 bg-purple-600 text-white px-2 py-1 rounded text-xs">
-                Mission Image
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Adoptable Dogs */}
-      <section id="adopt" className="py-16 px-4 bg-gray-50">
-        <div className="max-w-6xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Meet Our Available Friends</h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-12">
-            All are spayed/neutered, vaccinated, and ready for love.
-          </p>
-          <div className="relative rounded-2xl overflow-hidden shadow-lg border border-gray-200 max-w-4xl mx-auto">
-            <img
-              src={adoptableImage}
-              alt="Adoptable rescue dogs"
-              className="w-full h-auto object-cover"
-              onError={(e) => (e.currentTarget.src = '/placeholder-adopt.jpg')}
-            />
-            {adminMode && (
-              <div className="absolute top-2 right-2 bg-purple-600 text-white px-2 py-1 rounded text-xs">
-                Adoptable Dogs
-              </div>
-            )}
-          </div>
-          <div className="mt-8 flex justify-center">
-            <a
-              href="https://forms.pawprintrescue.org/adopt"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg shadow transition"
-            >
-              Start Your Adoption Application
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* Support */}
-      <section id="donate" className="py-16 px-4 bg-white">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">You Make This Possible</h2>
-          <p className="text-lg text-gray-600 mb-8">
-            $75 feeds a dog for a month. $200 covers emergency surgery. Every gift changes a life.
-          </p>
-          <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <a
-              href="https://donate.pawprintrescue.org"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg shadow transition"
-            >
-              Donate Now
-            </a>
-            <a
-              href="https://volunteer.pawprintrescue.org"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-6 py-3 bg-gray-800 hover:bg-gray-900 text-white font-semibold rounded-lg shadow transition"
-            >
-              Volunteer With Us
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer CTA */}
-      <footer className="bg-gray-900 text-white py-12 px-4">
-        <div className="max-w-4xl mx-auto text-center">
-          <h3 className="text-2xl font-bold mb-4">Ready to Welcome a New Best Friend?</h3>
-          <p className="text-gray-300 mb-6">
-            Asheville’s most trusted rescue — serving Western NC with compassion since 2017.
-          </p>
-          <div className="text-sm text-gray-400">
-            Pawprint Rescue • 501(c)(3) Nonprofit • EIN: 82-1234567
-          </div>
-        </div>
-      </footer>
-
-      {/* Admin Gallery (Hidden in production for non-admins, but present for dev) */}
-      {adminMode && (
-        <div className="fixed bottom-4 right-4 z-50">
-          <details className="bg-purple-900 text-white rounded shadow-lg">
-            <summary className="px-3 py-2 cursor-pointer font-medium">🛠️ Admin Gallery</summary>
-            <div className="p-4 bg-gray-900 border border-purple-700 rounded-b">
-              <h4 className="font-semibold mb-2">Upload Management Images</h4>
-              {ARTWORKS.map((art) => {
-                const img = artworks[art.id]?.image_url;
-                return (
-                  <div key={art.id} className="mb-3">
-                    <div className="text-xs text-purple-300 mb-1">{art.title}</div>
-                    {!img && (
-                      <button
-                        onClick={() => copyPrompt(art.prompt, art.id)}
-                        className="text-xs bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded mr-2"
-                      >
-                        {copiedId === art.id ? 'Copied!' : 'Copy Prompt'}
-                      </button>
-                    )}
-                    <label className="text-xs bg-purple-700 hover:bg-purple-600 px-2 py-1 rounded cursor-pointer inline-block">
-                      {uploading === art.id ? 'Uploading…' : 'Upload'}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleUpload(e, art.id)}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-                );
-              })}
-            </div>
-          </details>
         </div>
       )}
+
+      <main className="pt-6 pb-16">
+        {/* Headline */}
+        <div className="max-w-4xl mx-auto px-4 text-center mb-16">
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4 leading-tight">
+            Certified Tree Care That <span className="text-amber-700">Protects</span> Your Property
+          </h1>
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            Gryscol Tree Care serves Asheville homeowners with ISA-certified arborists, 
+            storm emergency response, and meticulous pruning—backed by 15+ years of local trust.
+          </p>
+        </div>
+
+        {/* Services Overview */}
+        <div className="max-w-6xl mx-auto px-4 mb-20">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { title: 'Emergency Tree Removal', desc: '24/7 storm response. Fully insured. No hidden fees.' },
+              { title: 'Precision Pruning', desc: 'Health-focused trimming that extends tree life & beauty.' },
+              { title: 'Stump Grinding', desc: 'Clean, complete removal—lawn-ready in one visit.' }
+            ].map((s, i) => (
+              <div key={i} className="bg-white p-6 rounded-xl border border-amber-100 shadow-sm hover:shadow-md transition">
+                <h3 className="text-xl font-bold text-gray-900 mb-2">{s.title}</h3>
+                <p className="text-gray-600">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Photo Gallery — Powered by Your System */}
+        <div className="max-w-6xl mx-auto px-4 mb-20">
+          <h2 className="text-3xl font-bold text-center mb-12">Real Work. Real Results.</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {ARTWORKS.map((art) => {
+              const artworkData = artworks[art.id] || { image_url: null };
+              const imageUrl = artworkData.image_url;
+
+              return (
+                <div key={art.id} className="group relative overflow-hidden rounded-xl shadow-lg">
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
+                      alt={art.title}
+                      className="w-full h-64 object-cover transition-transform duration-500 group-hover:scale-105"
+                      onError={(e) => (e.currentTarget.src = '/placeholder-tree.jpg')}
+                    />
+                  ) : (
+                    <div className="w-full h-64 bg-amber-50 flex items-center justify-center">
+                      <span className="text-gray-400 text-sm">Project image loading...</span>
+                    </div>
+                  )}
+
+                  {adminMode && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex flex-col items-center justify-center p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {!imageUrl && (
+                        <div className="text-white text-center mb-3">
+                          <p className="text-xs mb-2">{art.prompt}</p>
+                          <button
+                            onClick={() => copyPrompt(art.prompt, art.id)}
+                            className="text-xs bg-white text-amber-700 px-2 py-1 rounded"
+                          >
+                            {copiedId === art.id ? 'Copied!' : 'Copy Prompt'}
+                          </button>
+                        </div>
+                      )}
+                      <label className="text-white bg-amber-600 px-3 py-1.5 rounded cursor-pointer text-sm">
+                        {uploading === art.id ? 'Uploading…' : 'Upload'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleUpload(e, art.id)}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  )}
+
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                    <h3 className="text-white font-semibold">{art.title}</h3>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {adminMode && (
+            <div className="mt-6 p-3 bg-amber-100 border border-amber-300 rounded text-sm text-amber-800 text-center">
+              👤 Admin mode: Upload project photos using the prompts above.
+            </div>
+          )}
+        </div>
+
+        {/* Final CTA */}
+        <div className="max-w-3xl mx-auto px-4 text-center">
+          <div className="bg-amber-50 rounded-2xl p-8 border border-amber-200">
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">Free On-Site Estimate</h2>
+            <p className="text-gray-600 mb-6">
+              Get a detailed quote with no obligation. We’ll assess your trees, explain options, and honor your budget.
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <a
+                href="tel:+18285550198"
+                className="bg-amber-600 hover:bg-amber-700 text-white px-8 py-3 rounded-full font-bold transition"
+              >
+                Call (828) 555-0198
+              </a>
+              <a
+                href="mailto:hello@gryscoltreecare.com"
+                className="border border-amber-600 text-amber-700 hover:bg-amber-50 px-8 py-3 rounded-full font-bold transition"
+              >
+                Email Us
+              </a>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Minimal Footer */}
+      <footer className="bg-gray-900 text-gray-400 py-8">
+        <div className="max-w-6xl mx-auto px-4 text-center">
+          <p>© {new Date().getFullYear()} Gryscol Tree Care — Asheville, NC</p>
+          <p className="mt-1 text-sm">Fully Licensed • ISA Certified • $2M Liability Insurance</p>
+        </div>
+      </footer>
     </div>
   );
 }
