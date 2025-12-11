@@ -1,131 +1,156 @@
-// app/page.tsx
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import { 
-  Flame, 
-  Hammer, 
-  Truck, 
-  ShieldCheck, 
-  Star, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  ChevronDown, 
-  Instagram, 
-  Facebook, 
-  Twitter,
-  Loader2
-} from 'lucide-react';
+  CalendarIcon, 
+  CameraIcon, 
+  CheckCircleIcon, 
+  ChevronRightIcon, 
+  EnvelopeIcon, 
+  MapPinIcon, 
+  PhoneIcon, 
+  PlayIcon, 
+  StarIcon,
+  TrophyIcon,
+  VideoCameraIcon,
+  XMarkIcon
+} from '@heroicons/react/24/outline';
+import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
-// Supabase setup - using production-ready configuration
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Business-specific gallery content
-const PROJECTS = [
+const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
+const GALLERY_PREFIX = 'elysian_gallery';
+
+// Gallery configuration for the business
+const GALLERY_ITEMS = [
   { 
-    id: 'mountain-lodge', 
-    title: 'Mountain Lodge Restoration',
-    prompt: 'A grand stone fireplace restoration in a rustic Asheville mountain lodge, featuring reclaimed wood mantel, handcrafted ironwork, and warm glowing embers casting dancing shadows on timber walls. Morning light streams through large windows overlooking misty Blue Ridge Mountains. Professional architectural photography, rich textures, cozy atmosphere.'
+    id: 'hero-drone-shot', 
+    title: 'Aspen Mountain Estate',
+    category: 'Real Estate',
+    prompt: 'A breathtaking aerial shot of a luxury mountain estate in Aspen during golden hour. Show the entire property with swimming pool, tennis court, and panoramic mountain views. The lighting should be warm with long shadows, highlighting architectural details and landscaping.'
   },
   { 
-    id: 'modern-farmhouse', 
-    title: 'Modern Farmhouse Conversion',
-    prompt: 'A dramatic transformation of an outdated brick fireplace into a sleek modern farmhouse focal point with floor-to-ceiling white shiplap, black steel accents, and floating walnut mantel. Soft ambient lighting highlights the texture of materials. Cozy living room setting with neutral decor, plants, and natural light. Interior design magazine quality.'
+    id: 'commercial-complex', 
+    title: 'Commercial Development',
+    category: 'Commercial',
+    prompt: 'Professional aerial footage of a new commercial complex under construction. Show the scale of development with multiple buildings, construction equipment, and surrounding infrastructure. Use cinematic lighting with dynamic shadows and vibrant colors to highlight progress.'
   },
   { 
-    id: 'historic-preservation', 
-    title: 'Historic Downtown Preservation',
-    prompt: 'Meticulous restoration of a 1920s cast-iron fireplace in a historic Asheville downtown brownstone. Close-up showing intricate Victorian-era detailing, polished brass fittings, and restored tilework. Warm amber lighting creates a nostalgic mood. Architectural conservation photography style with shallow depth of field.'
+    id: 'luxury-amenities', 
+    title: 'Resort Amenities',
+    category: 'Hospitality',
+    prompt: 'Stunning aerial view of luxury resort amenities including infinity pool overlooking mountains, golf course, and spa facilities. Show guests enjoying the facilities with natural, candid compositions. Use early morning light with mist rising from the pool.'
+  },
+  { 
+    id: 'event-coverage', 
+    title: 'Wedding Venue',
+    category: 'Events',
+    prompt: 'Aerial cinematic shot of a luxury wedding venue with sweeping views of mountains. Show the ceremony setup, reception area, and surrounding natural beauty. Capture the golden hour lighting with romantic, soft focus on key moments.'
+  },
+  { 
+    id: 'property-tour', 
+    title: '360° Virtual Tour',
+    category: 'Interactive',
+    prompt: 'Aerial 360-degree virtual tour of a multi-million dollar property. Show seamless transitions between different angles highlighting indoor-outdoor living spaces, expansive windows, and panoramic views. Use smooth, cinematic camera movements.'
+  },
+  { 
+    id: 'seasonal-transition', 
+    title: 'Seasonal Beauty',
+    category: 'Nature',
+    prompt: 'Time-lapse aerial footage showing seasonal transition from summer to winter in Aspen. Capture vibrant fall foliage transforming into pristine snow-covered landscapes. Use smooth transitions and show the same location across seasons.'
   },
 ];
 
-type ProjectState = { [key: string]: { image_url: string | null } };
+type GalleryState = { [key: string]: { image_url: string | null; loaded: boolean } };
 
-const PROJECT_CATEGORIES = [
-  { 
-    id: 'new-install', 
-    title: 'Custom Installations', 
-    description: 'Bespoke fireplaces designed around your space and lifestyle', 
-    icon: Flame 
-  },
-  { 
-    id: 'restoration', 
-    title: 'Restorations', 
-    description: 'Preserving history while enhancing function and safety', 
-    icon: Hammer 
-  },
-  { 
-    id: 'conversion', 
-    title: 'Fuel Conversions', 
-    description: 'Modernizing wood-burning to gas or electric with seamless integration', 
-    icon: Truck 
-  },
-  { 
-    id: 'repair', 
-    title: 'Repairs & Maintenance', 
-    description: 'Expert chimney inspections, flue repairs, and safety certifications', 
-    icon: ShieldCheck 
-  },
-];
-
+// Testimonial data
 const TESTIMONIALS = [
   {
     id: 1,
-    author: "Michael & Sarah Reynolds",
-    location: "Biltmore Forest",
-    text: "Hearth & Hammer transformed our drafty 1930s cottage fireplace into the heart of our home. Their attention to historical details while adding modern efficiency was masterful. We now host gatherings year-round around this beautiful focal point.",
-    rating: 5
+    name: 'Michael Sterling',
+    role: 'CEO, Sterling Properties',
+    content: 'Elysian transformed our luxury listings. Their aerial footage increased our property views by 300% and helped us close a $12M estate in record time.',
+    rating: 5,
+    location: 'Aspen, CO'
   },
   {
     id: 2,
-    author: "Dr. Elena Rodriguez",
-    location: "Downtown Asheville",
-    text: "As a preservation architect, I'm extremely particular about restoration work. Their team exceeded my expectations on our historic downtown office fireplace - respecting original materials while implementing critical safety upgrades. A true craftsman's approach.",
-    rating: 5
+    name: 'Sarah Chen',
+    role: 'Development Director, Alpine Resorts',
+    content: 'The commercial drone footage for our resort expansion was absolutely stunning. It became our primary marketing asset and secured additional investor funding.',
+    rating: 5,
+    location: 'Vail, CO'
   },
   {
     id: 3,
-    author: "James Thornton",
-    location: "Black Mountain",
-    text: "After three other companies couldn't solve our smoking fireplace issue, Hearth & Hammer diagnosed a complex chimney draft problem. Their solution involved both structural repair and a custom insert installation. Finally, we can enjoy our fireplace without setting off smoke alarms!",
-    rating: 5
-  }
+    name: 'James & Elena Rodriguez',
+    role: 'Property Owners',
+    content: 'Our wedding venue aerial video went viral on social media. Bookings filled for the next two seasons within a week of the video release.',
+    rating: 5,
+    location: 'Telluride, CO'
+  },
 ];
 
-const TEAM_MEMBERS = [
+// Services data
+const SERVICES = [
   {
     id: 1,
-    name: "Thomas Blackwood",
-    title: "Master Mason & Founder",
-    bio: "25+ years preserving Asheville's architectural heritage. Certified by the National Chimney Sweep Guild and Masonry Institute of America. Thomas apprenticed under European craftsmen before founding Hearth & Hammer in 2008.",
-    image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80"
+    title: 'Luxury Real Estate Cinematics',
+    description: 'Cinematic aerial tours that showcase properties in their best light',
+    features: ['4K/8K Resolution', 'Golden Hour Shoots', 'Virtual Staging', 'Property Mapping'],
+    startingPrice: '$2,500',
+    icon: CameraIcon
   },
   {
     id: 2,
-    name: "Maya Chen",
-    title: "Design Director",
-    bio: "Former architectural designer specializing in historic renovations. Maya ensures every fireplace complements your home's character while meeting modern comfort standards. Graduate of NC State's College of Design.",
-    image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80"
-  }
+    title: 'Commercial Development Documentation',
+    description: 'Progress tracking and promotional footage for developments',
+    features: ['Monthly Updates', '3D Modeling', 'Progress Timelines', 'Investor Presentations'],
+    startingPrice: '$4,500',
+    icon: TrophyIcon
+  },
+  {
+    id: 3,
+    title: 'Event & Venue Coverage',
+    description: 'Capture your special events from breathtaking perspectives',
+    features: ['Live Streaming', 'Multi-Angle Shots', 'Same-Day Edits', 'Social Media Packages'],
+    startingPrice: '$3,200',
+    icon: VideoCameraIcon
+  },
 ];
 
-const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
-const GALLERY_PREFIX = 'gallery';
+// Process steps
+const PROCESS_STEPS = [
+  { step: 1, title: 'Consultation', description: 'We understand your vision and requirements' },
+  { step: 2, title: 'Flight Planning', description: 'Detailed planning for optimal shots and angles' },
+  { step: 3, title: 'Shoot Day', description: 'Professional drone operation with backup equipment' },
+  { step: 4, title: 'Post-Production', description: 'Expert editing, color grading, and delivery' },
+];
 
-function ProjectGallery() {
-  const [projects, setProjects] = useState<ProjectState>({});
+export default function HomePage() {
+  const [galleryImages, setGalleryImages] = useState<GalleryState>({});
   const [userId, setUserId] = useState<string | null>(null);
   const [adminMode, setAdminMode] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    service: '',
+    message: ''
+  });
+  const [formSubmitted, setFormSubmitted] = useState(false);
+  const [activeTestimonial, setActiveTestimonial] = useState(0);
+  const galleryRef = useRef<HTMLDivElement>(null);
 
+  // Check admin status
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -136,70 +161,70 @@ function ProjectGallery() {
     checkUser();
   }, []);
 
+  // Load gallery images
   useEffect(() => {
     const loadImages = async () => {
-      try {
-        // Preload state with placeholders
-        const initialState: ProjectState = {};
-        PROJECTS.forEach(project => {
-          initialState[project.id] = { image_url: '/placeholder-fireplace.jpg' };
-        });
-        setProjects(initialState);
+      // Initial state - all images not loaded
+      const initialState: GalleryState = {};
+      GALLERY_ITEMS.forEach(item => {
+        initialState[item.id] = { image_url: null, loaded: false };
+      });
 
-        const { data: images, error } = await supabase
-          .from('images')
-          .select('path, created_at')
-          .eq('user_id', ADMIN_USER_ID)
-          .like('path', `${ADMIN_USER_ID}/${GALLERY_PREFIX}/%`)
-          .order('created_at', { ascending: false });
+      // Fetch gallery images
+      const { data: images, error } = await supabase
+        .from('images')
+        .select('path, created_at')
+        .eq('user_id', ADMIN_USER_ID)
+        .like('path', `${ADMIN_USER_ID}/${GALLERY_PREFIX}/%`)
+        .order('created_at', { ascending: false });
 
-        if (error) throw error;
+      if (error) {
+        console.error('Error loading images:', error);
+        setGalleryImages(initialState);
+        return;
+      }
 
-        const latestImagePerProject: Record<string, string> = {};
+      if (images) {
+        const latestImagePerArtwork: Record<string, string> = {};
 
-        if (images) {
-          for (const img of images) {
-            const pathParts = img.path.split('/');
-            if (pathParts.length >= 4 && pathParts[1] === GALLERY_PREFIX) {
-              const projectId = pathParts[2];
-              if (PROJECTS.some(p => p.id === projectId) && !latestImagePerProject[projectId]) {
-                latestImagePerProject[projectId] = img.path;
-              }
+        for (const img of images) {
+          const pathParts = img.path.split('/');
+          if (pathParts.length >= 4 && pathParts[1] === GALLERY_PREFIX.replace('_', '')) {
+            const artId = pathParts[2];
+            if (GALLERY_ITEMS.some(a => a.id === artId) && !latestImagePerArtwork[artId]) {
+              latestImagePerArtwork[artId] = img.path;
             }
           }
         }
 
-        // Update with actual images
-        const updatedState = { ...initialState };
-        PROJECTS.forEach(project => {
-          if (latestImagePerProject[project.id]) {
-            const publicUrl = supabase.storage
+        // Update state with loaded images
+        GALLERY_ITEMS.forEach(item => {
+          if (latestImagePerArtwork[item.id]) {
+            const url = supabase.storage
               .from('user_images')
-              .getPublicUrl(latestImagePerProject[project.id]).data.publicUrl;
-            updatedState[project.id] = { image_url: publicUrl };
+              .getPublicUrl(latestImagePerArtwork[item.id]).data.publicUrl;
+            initialState[item.id] = { image_url: url, loaded: false };
           }
         });
-
-        setProjects(updatedState);
-      } catch (err) {
-        console.error('Error loading gallery:', err);
-      } finally {
-        setLoading(false);
       }
+
+      setGalleryImages(initialState);
     };
 
     loadImages();
   }, []);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, projectId: string) => {
+  // Handle image upload
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, artworkId: string) => {
     if (!adminMode) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setUploading(projectId);
+    setUploading(artworkId);
     try {
+      const folderPath = `${ADMIN_USER_ID}/${GALLERY_PREFIX}/${artworkId}/`;
+
       // Clean up old images
-      const folderPath = `${ADMIN_USER_ID}/${GALLERY_PREFIX}/${projectId}/`;
       const { data: existingImages } = await supabase
         .from('images')
         .select('path')
@@ -227,10 +252,9 @@ function ProjectGallery() {
       if (dbErr) throw dbErr;
 
       const publicUrl = supabase.storage.from('user_images').getPublicUrl(filePath).data.publicUrl;
-      
-      setProjects(prev => ({
-        ...prev,
-        [projectId]: { image_url: publicUrl }
+      setGalleryImages(prev => ({ 
+        ...prev, 
+        [artworkId]: { image_url: publicUrl, loaded: false } 
       }));
     } catch (err) {
       console.error('Upload failed:', err);
@@ -241,1078 +265,596 @@ function ProjectGallery() {
     }
   };
 
-  const copyPrompt = (prompt: string, projectId: string) => {
+  // Copy prompt to clipboard
+  const copyPrompt = (prompt: string, artworkId: string) => {
     navigator.clipboard.writeText(prompt).then(() => {
-      setCopiedId(projectId);
+      setCopiedId(artworkId);
       setTimeout(() => setCopiedId(null), 2000);
     });
   };
 
-  if (loading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-12">
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className="bg-amber-50 rounded-xl overflow-hidden border border-amber-200 animate-pulse">
-            <div className="h-80 bg-gradient-to-br from-amber-100 to-amber-50" />
-            <div className="p-6">
-              <div className="h-6 bg-amber-200 rounded w-3/4 mb-2" />
-              <div className="h-4 bg-amber-100 rounded w-1/2" />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <section id="gallery" className="py-24 bg-gradient-to-b from-stone-50 to-amber-50 relative overflow-hidden">
-      <div className="container mx-auto px-4 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="text-center max-w-3xl mx-auto mb-16"
-        >
-          <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-            Craftsmanship That <span className="text-amber-800">Endures</span>
-          </h2>
-          <p className="text-xl text-gray-600">
-            Explore our portfolio of fireplace transformations across Western North Carolina
-          </p>
-        </motion.div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {PROJECTS.map((project, index) => {
-            const projectData = projects[project.id] || { image_url: '/placeholder-fireplace.jpg' };
-            const imageUrl = projectData.image_url;
-
-            return (
-              <motion.div
-                key={project.id}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-                className="group relative bg-white rounded-2xl overflow-hidden shadow-lg border border-amber-100 hover:shadow-xl transition-all duration-300"
-              >
-                <div className="relative h-80 overflow-hidden">
-                  <AnimatePresence>
-                    {imageUrl ? (
-                      <motion.img
-                        key="image"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.4 }}
-                        src={imageUrl}
-                        alt={project.title}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = '/placeholder-fireplace.jpg';
-                        }}
-                      />
-                    ) : (
-                      <motion.div
-                        key="placeholder"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100 flex items-center justify-center"
-                      >
-                        <Hammer className="w-16 h-16 text-amber-400 opacity-75" />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                  
-                  {/* Overlay gradient for text readability */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-                      <h3 className="text-2xl font-bold mb-2">{project.title}</h3>
-                      <p className="text-amber-200 font-medium">Asheville, NC</p>
-                    </div>
-                  </div>
-                </div>
-
-                {adminMode && (
-                  <div className="absolute top-3 right-3 z-20 bg-black/70 backdrop-blur-sm rounded-lg p-2 flex space-x-1">
-                    <button
-                      onClick={() => copyPrompt(project.prompt, project.id)}
-                      className="p-1.5 text-amber-300 hover:text-white transition-colors"
-                      title={copiedId === project.id ? "Copied!" : "Copy prompt"}
-                    >
-                      {copiedId === project.id ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
-                      )}
-                    </button>
-                    <label 
-                      className={`p-1.5 text-amber-300 hover:text-white transition-colors cursor-pointer ${
-                        uploading === project.id ? 'opacity-50 pointer-events-none' : ''
-                      }`}
-                      title={uploading === project.id ? "Uploading..." : "Upload image"}
-                    >
-                      {uploading === project.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      )}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleUpload(e, project.id)}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-                )}
-
-                <div className="p-6 bg-gradient-to-b from-white to-amber-50">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">{project.title}</h3>
-                  <p className="text-gray-600 mb-4">Asheville, NC</p>
-                  <div className="flex items-center">
-                    <div className="flex text-amber-400">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} className="h-5 w-5 fill-current" />
-                      ))}
-                    </div>
-                    <span className="ml-2 text-sm font-medium text-gray-500">Featured Project</span>
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-
-        {adminMode && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            className="mt-12 max-w-3xl mx-auto p-4 bg-amber-50 border border-amber-200 rounded-xl backdrop-blur-sm"
-          >
-            <div className="flex items-start space-x-3">
-              <div className="mt-1">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <p className="font-medium text-amber-800">
-                  Admin Mode Active: Upload client project photos using the camera icons above. 
-                  Use the copy icon to get detailed prompts for generating sample images.
-                </p>
-                <p className="text-sm text-amber-700 mt-1">
-                  Images are automatically optimized and served via CDN for fast loading
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-export default function Home() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [formData, setFormData] = useState({ 
-    name: '', 
-    email: '', 
-    phone: '', 
-    projectType: '', 
-    message: '' 
-  });
-  const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
-  const [showStickyContact, setShowStickyContact] = useState(false);
-  const { scrollY } = useScroll();
-  const yRange = useTransform(scrollY, [0, 100], [0, 1]);
-  const headerRef = useRef<HTMLElement>(null);
-
-  // Sticky header effect
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowStickyContact(window.scrollY > 600);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  // Header background effect
-  useEffect(() => {
-    const unsubscribe = yRange.onChange((value) => {
-      if (headerRef.current) {
-        headerRef.current.style.background = `rgba(255, 253, 246, ${Math.min(0.95, value * 1.2)})`;
-        headerRef.current.style.boxShadow = value > 0.1 
-          ? '0 4px 20px -2px rgba(0, 0, 0, 0.08)' 
-          : 'none';
-      }
-    });
-    return unsubscribe;
-  }, [yRange]);
-
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitStatus('submitting');
-    
-    try {
-      // In production, connect to your backend API here
-      await new Promise(resolve => setTimeout(resolve, 1800));
-      
-      // Send notification to admin
-      const { error } = await supabase.functions.invoke('contact-notification', {
-        body: JSON.stringify(formData)
+    // Simulate form submission
+    setFormSubmitted(true);
+    setTimeout(() => {
+      setFormSubmitted(false);
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        service: '',
+        message: ''
       });
-      
-      if (error) throw error;
-      
-      setSubmitStatus('success');
-      setFormData({ name: '', email: '', phone: '', projectType: '', message: '' });
-      
-      // Reset form after 4 seconds
-      setTimeout(() => setSubmitStatus('idle'), 4000);
-    } catch (error) {
-      console.error('Submission failed:', error);
-      setSubmitStatus('error');
-    }
+    }, 3000);
+  };
+
+  // Auto-rotate testimonials
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveTestimonial((prev) => (prev + 1) % TESTIMONIALS.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Handle image load
+  const handleImageLoad = (id: string) => {
+    setGalleryImages(prev => ({
+      ...prev,
+      [id]: { ...prev[id], loaded: true }
+    }));
   };
 
   return (
-    <div className="font-sans bg-white text-gray-800 overflow-x-hidden">
+    <div className="min-h-screen bg-gray-950 text-white">
       {/* Navigation */}
-      <motion.header 
-        ref={headerRef}
-        className="fixed w-full z-50 transition-all duration-300"
-      >
-        <div className="container mx-auto px-4">
-          <div className="flex justify-between items-center py-4">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="flex items-center space-x-3"
-            >
-              <div className="bg-amber-100 p-2 rounded-lg">
-                <Flame className="w-7 h-7 text-amber-800" />
-              </div>
+      <nav className="fixed top-0 w-full z-50 bg-gray-950/90 backdrop-blur-sm border-b border-gray-800">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg" />
               <div>
-                <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-amber-800 to-rose-600 bg-clip-text text-transparent">
-                  Hearth & Hammer
+                <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+                  Elysian Aerial Imaging
                 </h1>
-                <p className="text-sm text-amber-700 font-medium">Asheville's Fireplace Artisans Since 2008</p>
+                <p className="text-xs text-gray-400">Aspen · Vail · Telluride</p>
               </div>
-            </motion.div>
-
-            {/* Mobile menu button */}
-            <button 
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 hover:bg-amber-100 rounded-lg transition-colors"
-              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-            >
-              {mobileMenuOpen ? (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-amber-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-amber-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              )}
-            </button>
-
-            {/* Desktop Navigation */}
-            <nav className="hidden md:block">
-              <ul className="flex space-x-10">
-                {['Services', 'Gallery', 'Process', 'Contact'].map((item) => (
-                  <li key={item}>
-                    <a 
-                      href={`#${item.toLowerCase()}`} 
-                      className="font-medium text-amber-900 hover:text-amber-700 transition-colors py-2 relative group"
-                    >
-                      {item}
-                      <span className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-amber-500 to-rose-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></span>
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-
-            <a 
-              href="#contact" 
-              className="hidden md:block bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 text-white font-bold py-2.5 px-6 rounded-full shadow-md hover:shadow-lg transition-all"
-            >
-              Get Estimate
-            </a>
-          </div>
-        </div>
-
-        {/* Mobile Navigation */}
-        <AnimatePresence>
-          {mobileMenuOpen && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="md:hidden bg-amber-50 border-t border-amber-200 overflow-hidden"
-            >
-              <div className="container mx-auto px-4 py-4">
-                <ul className="space-y-1">
-                  {['Services', 'Gallery', 'Process', 'Contact'].map((item) => (
-                    <motion.li
-                      key={item}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.1 * ['Services', 'Gallery', 'Process', 'Contact'].indexOf(item) }}
-                    >
-                      <a 
-                        href={`#${item.toLowerCase()}`} 
-                        onClick={() => setMobileMenuOpen(false)}
-                        className="block py-4 text-lg font-medium text-amber-800 border-b border-amber-200 hover:bg-amber-100 rounded-lg px-3 transition-colors"
-                      >
-                        {item}
-                      </a>
-                    </motion.li>
-                  ))}
-                </ul>
-                <div className="mt-6 pt-4 border-t border-amber-200">
-                  <a 
-                    href="#contact" 
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="block bg-gradient-to-r from-amber-600 to-rose-600 text-white font-bold py-3 px-6 rounded-full text-center shadow-md hover:shadow-lg transition-all"
-                  >
-                    Get Estimate
-                  </a>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.header>
-
-      {/* Sticky Contact Button - Only visible after scrolling */}
-      {showStickyContact && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="fixed bottom-6 right-6 z-40 md:hidden"
-        >
-          <a 
-            href="#contact" 
-            className="bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 text-white font-bold py-4 px-6 rounded-full shadow-xl flex items-center space-x-2"
-          >
-            <Phone className="w-5 h-5" />
-            <span>Call Now</span>
-          </a>
-        </motion.div>
-      )}
-
-      {/* Hero Section - Immersive full-screen experience */}
-      <section className="pt-36 pb-20 md:pb-32 relative overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-b from-amber-50/80 to-white mix-blend-multiply" />
-          <img 
-            src="https://images.unsplash.com/photo-1594132803621-696c55c4d8c3?auto=format&fit=crop&w=1920&q=80" 
-            alt="Grand stone fireplace in mountain lodge" 
-            className="w-full h-full object-cover"
-          />
-        </div>
-        
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="max-w-4xl mx-auto text-center">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
-              className="mb-8"
-            >
-              <div className="inline-block bg-amber-100 text-amber-800 text-sm font-medium px-4 py-1.5 rounded-full mb-6">
-                Serving Asheville & Western North Carolina Since 2008
-              </div>
-              <h1 className="text-4xl md:text-6xl font-bold text-white mb-6 leading-tight">
-                Where Craftsmanship <span className="text-amber-300">Meets Comfort</span>
-              </h1>
-              <p className="text-xl text-amber-100 max-w-3xl mx-auto mb-10">
-                Custom fireplace installations and restorations that honor Asheville's architectural heritage while delivering modern comfort and efficiency
-              </p>
-              
-              <div className="flex flex-col sm:flex-row justify-center gap-4">
-                <a 
-                  href="#contact" 
-                  className="bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02]"
-                >
-                  Get Free Estimate
-                </a>
-                <a 
-                  href="#gallery" 
-                  className="bg-white/90 backdrop-blur-sm text-amber-900 font-medium text-lg py-4 px-8 rounded-xl hover:bg-amber-50 transition-colors border border-white/20"
-                >
-                  View Our Work
-                </a>
-              </div>
-            </motion.div>
-            
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.5 }}
-              className="mt-16"
-            >
-              <div className="inline-flex items-center bg-black/40 backdrop-blur-sm rounded-full px-5 py-2.5 border border-white/10">
-                <div className="flex -space-x-2 mr-4">
-                  {[1,2,3,4,5].map((i) => (
-                    <div 
-                      key={i} 
-                      className="w-8 h-8 rounded-full border-2 border-white bg-gradient-to-br from-amber-400 to-rose-500"
-                      style={{ transform: `translateX(${i * 8}px)` }}
-                    ></div>
-                  ))}
-                </div>
-                <div className="text-left">
-                  <p className="font-bold text-white">217+ Homes Transformed</p>
-                  <p className="text-amber-200 text-sm">Across Western North Carolina</p>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-        
-        <div className="absolute bottom-0 left-0 right-0 flex justify-center pb-10 z-10">
-          <motion.a
-            href="#services"
-            whileHover={{ y: -5 }}
-            whileTap={{ scale: 0.95 }}
-            className="bg-white/20 backdrop-blur-sm text-white p-3 rounded-full border border-white/30 hover:bg-white/30 transition-colors"
-            aria-label="Scroll down"
-          >
-            <ChevronDown className="w-6 h-6 animate-bounce" />
-          </motion.a>
-        </div>
-      </section>
-
-      {/* Services Section - Unique card layout with icons */}
-      <section id="services" className="py-24 bg-white relative">
-        <div className="container mx-auto px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center max-w-3xl mx-auto mb-16"
-          >
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-              Our <span className="text-amber-800">Artisan Services</span>
-            </h2>
-            <p className="text-xl text-gray-600">
-              Every fireplace we create is a collaboration between historical craftsmanship and modern engineering
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div className="space-y-8">
-              {PROJECT_CATEGORIES.map((category, index) => {
-                const Icon = category.icon;
-                return (
-                  <motion.div
-                    key={category.id}
-                    initial={{ opacity: 0, x: -30 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: index * 0.1 }}
-                    className="group relative p-8 rounded-2xl bg-gradient-to-br from-amber-50 to-white border border-amber-100 hover:border-amber-300 transition-all duration-300"
-                  >
-                    <div className="absolute -inset-1 bg-gradient-to-r from-amber-200 to-rose-300 rounded-2xl opacity-0 group-hover:opacity-100 blur transition duration-300" />
-                    <div className="relative">
-                      <div className="w-14 h-14 rounded-xl bg-amber-100 flex items-center justify-center mb-6">
-                        <Icon className="w-7 h-7 text-amber-800" />
-                      </div>
-                      <h3 className="text-2xl font-bold text-gray-900 mb-3 group-hover:text-amber-800 transition-colors">
-                        {category.title}
-                      </h3>
-                      <p className="text-gray-600 leading-relaxed">
-                        {category.description}
-                      </p>
-                    </div>
-                  </motion.div>
-                );
-              })}
             </div>
             
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="bg-gradient-to-br from-stone-900 to-amber-900 rounded-3xl overflow-hidden shadow-2xl border-2 border-amber-300/50"
-            >
-              <div className="p-8 md:p-12 bg-black/30 backdrop-blur-sm">
-                <h3 className="text-3xl font-bold text-white mb-4">The Hearth & Hammer Difference</h3>
-                <ul className="space-y-4">
-                  {[{
-                    title: 'Master Craftsmen',
-                    desc: 'All projects led by certified masons with 15+ years experience'
-                  }, {
-                    title: 'Zero-Risk Guarantee',
-                    desc: '100% satisfaction promise or we redo the work at no cost'
-                  }, {
-                    title: 'Historic Specialists',
-                    desc: 'Preservation techniques approved by Asheville Historic Resources Commission'
-                  }, {
-                    title: 'Eco-Conscious',
-                    desc: 'Energy-efficient designs that reduce heating costs by up to 30%'
-                  }].map((item, i) => (
-                    <li key={i} className="flex items-start">
-                      <div className="flex-shrink-0 mt-1 w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center mr-3">
-                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="font-bold text-white">{item.title}</p>
-                        <p className="text-amber-100">{item.desc}</p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <img 
-                src="https://images.unsplash.com/photo-1600596703413-5cc6f0aaf6ff?auto=format&fit=crop&w=600&q=80" 
-                alt="Master mason working on stone fireplace" 
-                className="w-full h-64 object-cover"
+            <div className="hidden md:flex items-center space-x-8">
+              <a href="#services" className="hover:text-cyan-400 transition-colors">Services</a>
+              <a href="#gallery" className="hover:text-cyan-400 transition-colors">Gallery</a>
+              <a href="#process" className="hover:text-cyan-400 transition-colors">Process</a>
+              <a href="#contact" className="hover:text-cyan-400 transition-colors">Contact</a>
+              <button className="px-6 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-lg hover:opacity-90 transition-opacity">
+                Book Consultation
+              </button>
+            </div>
+
+            <div className="md:hidden">
+              <button className="p-2">
+                <div className="w-6 h-0.5 bg-white mb-1.5"></div>
+                <div className="w-6 h-0.5 bg-white mb-1.5"></div>
+                <div className="w-6 h-0.5 bg-white"></div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="relative min-h-screen flex items-center pt-20">
+        <div className="absolute inset-0 z-0">
+          {galleryImages['hero-drone-shot']?.image_url ? (
+            <div className="relative w-full h-full">
+              <img
+                src={galleryImages['hero-drone-shot'].image_url}
+                alt="Luxury Aerial View"
+                className={`w-full h-full object-cover transition-opacity duration-500 ${
+                  galleryImages['hero-drone-shot'].loaded ? 'opacity-100' : 'opacity-0'
+                }`}
+                onLoad={() => handleImageLoad('hero-drone-shot')}
               />
-            </motion.div>
-          </div>
+              <div className={`absolute inset-0 bg-gradient-to-b from-gray-950/80 via-gray-950/60 to-gray-950 ${
+                galleryImages['hero-drone-shot'].loaded ? 'opacity-100' : 'opacity-0'
+              } transition-opacity duration-500`} />
+            </div>
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-gray-900 to-gray-950" />
+          )}
         </div>
-      </section>
 
-      {/* Gallery Section with Admin Upload System */}
-      <ProjectGallery />
-
-      {/* Process Section - Unique timeline layout */}
-      <section id="process" className="py-24 bg-gradient-to-b from-stone-50 to-white">
-        <div className="container mx-auto px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center max-w-3xl mx-auto mb-16"
-          >
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-              Our <span className="text-amber-800">Craftsmanship Process</span>
-            </h2>
-            <p className="text-xl text-gray-600">
-              A meticulous 5-step approach ensuring every fireplace becomes a legacy piece
-            </p>
-          </motion.div>
-
-          <div className="relative max-w-4xl mx-auto">
-            {/* Timeline connector */}
-            <div className="hidden md:block absolute top-0 bottom-0 left-1/2 transform -translate-x-1/2 w-1 bg-gradient-to-b from-amber-200 to-amber-400 rounded-full" />
+        <div className="container relative z-10 mx-auto px-4 py-20">
+          <div className="max-w-3xl">
+            <div className="inline-flex items-center px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 mb-6">
+              <span className="text-cyan-400 text-sm">FAA Certified · Insured · Local</span>
+            </div>
             
-            {[
-              {
-                step: 1,
-                title: "Heritage Assessment",
-                desc: "We study your home's architectural history and heating needs through detailed site analysis and historical research"
-              },
-              {
-                step: 2,
-                title: "Artisan Design",
-                desc: "Create custom blueprints integrating traditional craftsmanship with modern efficiency standards and safety codes"
-              },
-              {
-                step: 3,
-                title: "Material Sourcing",
-                desc: "Source reclaimed materials from Asheville's historic properties and local quarries for authentic character"
-              },
-              {
-                step: 4,
-                title: "Master Construction",
-                desc: "Our lead masons execute the build with precision, using time-honored techniques combined with modern engineering"
-              },
-              {
-                step: 5,
-                title: "Legacy Certification",
-                desc: "Final inspection with detailed documentation and a 25-year craftsmanship warranty on all structural elements"
-              }
-            ].map((item, index) => (
-              <motion.div
-                key={item.step}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.15 }}
-                className={`flex flex-col md:flex-row ${index % 2 === 0 ? 'md:flex-row-reverse' : ''} mb-16 md:mb-24 relative`}
-              >
-                {/* Timeline dot */}
-                <div className="absolute left-1/2 top-8 transform -translate-x-1/2 md:static md:left-auto md:transform-none w-12 h-12 rounded-full bg-gradient-to-br from-amber-500 to-rose-600 flex items-center justify-center text-white font-bold text-xl z-10 md:mr-6 md:ml-6">
-                  {item.step}
-                </div>
-                
-                <div className={`w-full md:w-5/12 ${index % 2 === 0 ? 'md:ml-auto' : 'md:mr-auto'}`}>
-                  <div className="bg-white rounded-2xl p-8 shadow-lg border border-amber-100 hover:shadow-xl transition-shadow">
-                    <h3 className="text-2xl font-bold text-gray-900 mb-3">{item.title}</h3>
-                    <p className="text-gray-600 leading-relaxed">{item.desc}</p>
-                    <div className="mt-6 pt-6 border-t border-amber-100">
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-100 to-rose-100 flex items-center justify-center mr-3">
-                          <Hammer className="w-5 h-5 text-amber-700" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-amber-800">Timeline</p>
-                          <p className="text-gray-500">{index === 0 ? '1-2 weeks' : index === 4 ? 'Final Step' : '2-4 weeks'}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="hidden md:block w-1/12" />
-                
-                <div className="w-full md:w-5/12 mt-6 md:mt-0 flex items-center justify-center">
-                  <div className="relative w-full max-w-sm h-64 rounded-2xl overflow-hidden shadow-xl border-2 border-amber-200/50">
-                    <img 
-                      src={`https://images.unsplash.com/photo-1591181887421-4eb5e6c9a1c3?auto=format&fit=crop&w=600&q=80&dpr=1&${item.step}`} 
-                      alt={item.title} 
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                    <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-                      <p className="font-bold">{item.title}</p>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
+              Elevate Your Property with{' '}
+              <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+                Cinematic Aerial Excellence
+              </span>
+            </h1>
+            
+            <p className="text-xl text-gray-300 mb-10 max-w-2xl">
+              Professional drone cinematography for luxury real estate, commercial developments, 
+              and exclusive events in Colorado's most prestigious locations.
+            </p>
+            
+            <div className="flex flex-col sm:flex-row gap-4">
+              <button className="px-8 py-4 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-xl hover:opacity-90 transition-all hover:scale-105 flex items-center justify-center gap-2">
+                <CalendarIcon className="w-5 h-5" />
+                Schedule Flight Demo
+              </button>
+              <button className="px-8 py-4 border border-gray-700 rounded-xl hover:bg-gray-800 transition-all flex items-center justify-center gap-2">
+                <PlayIcon className="w-5 h-5" />
+                View Showreel
+              </button>
+            </div>
           </div>
         </div>
-      </section>
 
-      {/* Testimonials Section - Magazine style layout */}
-      <section className="py-24 bg-gradient-to-br from-amber-50 to-stone-100">
-        <div className="container mx-auto px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center max-w-3xl mx-auto mb-16"
-          >
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-              Stories from the <span className="text-amber-800">Hearth</span>
-            </h2>
-            <p className="text-xl text-gray-600">
-              Hear from Asheville homeowners who've rediscovered the joy of gathering around the fire
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div className="space-y-8">
-              {TESTIMONIALS.map((testimonial, index) => (
-                <motion.div
-                  key={testimonial.id}
-                  initial={{ opacity: 0, x: -30 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.1 }}
-                  className="bg-white rounded-2xl p-8 shadow-md border border-amber-100 relative overflow-hidden"
-                >
-                  <div className="absolute -top-4 -right-4 w-24 h-24 bg-gradient-to-br from-amber-100 to-rose-100 rounded-full opacity-20" />
-                  <div className="relative z-10">
-                    <div className="flex mb-4">
-                      {[...Array(testimonial.rating)].map((_, i) => (
-                        <Star key={i} className="w-6 h-6 text-amber-400 fill-current" />
-                      ))}
-                    </div>
-                    <p className="text-gray-600 italic mb-6 border-l-4 border-amber-400 pl-4 py-2">
-                      "{testimonial.text}"
-                    </p>
-                    <div>
-                      <p className="font-bold text-gray-900">{testimonial.author}</p>
-                      <div className="flex items-center text-amber-700">
-                        <MapPin className="w-4 h-4 mr-1" />
-                        <span className="text-sm">{testimonial.location}</span>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
+        {/* Stats */}
+        <div className="absolute bottom-0 left-0 right-0">
+          <div className="container mx-auto px-4 pb-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { value: '4K/8K', label: 'Ultra HD Resolution' },
+                { value: '48h', label: 'Turnaround Time' },
+                { value: '250+', label: 'Projects Completed' },
+                { value: '100%', label: 'Client Satisfaction' }
+              ].map((stat, idx) => (
+                <div key={idx} className="text-center p-4 bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-800">
+                  <div className="text-2xl font-bold text-cyan-400">{stat.value}</div>
+                  <div className="text-sm text-gray-400">{stat.label}</div>
+                </div>
               ))}
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Services Section */}
+      <section id="services" className="py-20 bg-gray-900">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold mb-4">Premium Aerial Services</h2>
+            <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+              Tailored solutions for discerning clients who demand nothing but the best
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {SERVICES.map((service) => {
+              const Icon = service.icon;
+              return (
+                <div key={service.id} className="bg-gray-800 rounded-2xl p-8 border border-gray-700 hover:border-cyan-500/30 transition-all group hover:scale-105">
+                  <div className="w-14 h-14 bg-gradient-to-br from-cyan-500/20 to-blue-600/20 rounded-xl mb-6 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Icon className="w-7 h-7 text-cyan-400" />
+                  </div>
+                  <h3 className="text-2xl font-bold mb-4">{service.title}</h3>
+                  <p className="text-gray-400 mb-6">{service.description}</p>
+                  <ul className="space-y-3 mb-8">
+                    {service.features.map((feature, idx) => (
+                      <li key={idx} className="flex items-center gap-3">
+                        <CheckCircleIcon className="w-5 h-5 text-cyan-500" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xl font-bold text-cyan-400">{service.startingPrice}</span>
+                    <button className="px-6 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors">
+                      View Details
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Process Section */}
+      <section id="process" className="py-20 bg-gray-950">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold mb-4">Our Seamless Process</h2>
+            <p className="text-gray-400 text-lg">From consultation to delivery - perfection at every step</p>
+          </div>
+
+          <div className="relative">
+            <div className="absolute left-1/2 transform -translate-x-1/2 h-0.5 bg-gradient-to-r from-cyan-500 to-blue-500 top-12 w-3/4 hidden md:block" />
             
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="relative"
-            >
-              <div className="bg-gradient-to-br from-stone-900 to-amber-900 rounded-3xl overflow-hidden shadow-2xl border-2 border-amber-300/50">
-                <div className="p-8 md:p-12 bg-black/20 backdrop-blur-sm">
-                  <div className="flex items-start mb-6">
-                    <div className="flex-shrink-0 mr-4">
-                      <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-amber-400">
+            <div className="grid md:grid-cols-4 gap-8 relative">
+              {PROCESS_STEPS.map((step) => (
+                <div key={step.step} className="text-center">
+                  <div className="w-24 h-24 mx-auto bg-gradient-to-br from-cyan-500/20 to-blue-600/20 rounded-full flex items-center justify-center mb-6 border-4 border-gray-800">
+                    <div className="w-20 h-20 bg-gray-900 rounded-full flex items-center justify-center text-3xl font-bold text-cyan-400">
+                      {step.step}
+                    </div>
+                  </div>
+                  <h3 className="text-xl font-bold mb-3">{step.title}</h3>
+                  <p className="text-gray-400">{step.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Gallery Section */}
+      <section id="gallery" ref={galleryRef} className="py-20 bg-gray-900">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-4">
+            <div>
+              <h2 className="text-4xl font-bold mb-4">Portfolio Showcase</h2>
+              <p className="text-gray-400 text-lg">
+                Experience the breathtaking perspectives we capture for our clients
+              </p>
+            </div>
+            
+            {adminMode && (
+              <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 border border-purple-600/30 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-sm">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  <span className="text-purple-300">Admin Mode Active</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">You can upload and manage gallery images</p>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {GALLERY_ITEMS.map((item) => {
+              const imageData = galleryImages[item.id] || { image_url: null, loaded: false };
+              const imageUrl = imageData.image_url;
+
+              return (
+                <div 
+                  key={item.id} 
+                  className="group relative bg-gray-800 rounded-2xl overflow-hidden border border-gray-700 hover:border-cyan-500/50 transition-all duration-300 hover:scale-105 cursor-pointer"
+                  onClick={() => imageUrl && setSelectedImage(imageUrl)}
+                >
+                  {/* Image Container */}
+                  <div className="aspect-video relative overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900">
+                    {imageUrl ? (
+                      <>
                         <img 
-                          src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=100&q=80" 
-                          alt="Thomas Blackwood" 
-                          className="w-full h-full object-cover"
+                          src={imageUrl}
+                          alt={item.title}
+                          className={`w-full h-full object-cover transition-opacity duration-500 ${
+                            imageData.loaded ? 'opacity-100' : 'opacity-0'
+                          }`}
+                          onLoad={() => handleImageLoad(item.id)}
+                        />
+                        {!imageData.loaded && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-8 h-8 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <div className="text-center p-8">
+                          <CameraIcon className="w-12 h-12 text-gray-700 mx-auto mb-4" />
+                          <span className="text-gray-600 block">No image uploaded</span>
+                          <span className="text-gray-700 text-sm block mt-2">{item.category}</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    
+                    {/* Category Badge */}
+                    <div className="absolute top-4 left-4">
+                      <span className="px-3 py-1 bg-gray-900/90 backdrop-blur-sm rounded-full text-sm">
+                        {item.category}
+                      </span>
+                    </div>
+                    
+                    {/* Admin Controls Overlay */}
+                    {adminMode && (
+                      <div className="absolute top-4 right-4 flex gap-2">
+                        {!imageUrl && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyPrompt(item.prompt, item.id);
+                            }}
+                            className="px-3 py-1.5 bg-gray-900/90 backdrop-blur-sm rounded-lg text-sm hover:bg-gray-800 transition-colors"
+                          >
+                            {copiedId === item.id ? 'Copied!' : 'Copy Prompt'}
+                          </button>
+                        )}
+                        
+                        <label className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg text-sm cursor-pointer hover:opacity-90 transition-opacity">
+                          {uploading === item.id ? 'Uploading...' : 'Upload'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleUpload(e, item.id)}
+                            className="hidden"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Content */}
+                  <div className="p-6">
+                    <h3 className="text-xl font-bold mb-2">{item.title}</h3>
+                    
+                    
+                    {adminMode && !imageUrl && (
+                      <div className="mt-4 p-4 bg-gray-800/50 rounded-lg">
+                        <p className="text-xs text-purple-300 mb-2">📝 AI Prompt:</p>
+                        <p className="text-xs text-gray-400 line-clamp-2">{item.prompt}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <section className="py-20 bg-gray-950">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold mb-4">Client Success Stories</h2>
+            <p className="text-gray-400 text-lg">Trusted by Colorado's most prestigious brands</p>
+          </div>
+
+          <div className="max-w-4xl mx-auto">
+            <div className="relative">
+              <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-800">
+                {TESTIMONIALS.map((testimonial, index) => (
+                  <div
+                    key={testimonial.id}
+                    className={`p-8 transition-opacity duration-500 ${
+                      index === activeTestimonial ? 'opacity-100' : 'opacity-0 absolute inset-0'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-6">
+                      {[...Array(5)].map((_, i) => (
+                        <StarIconSolid
+                          key={i}
+                          className="w-5 h-5 text-yellow-500"
+                        />
+                      ))}
+                    </div>
+                    <blockquote className="text-2xl font-light mb-8 leading-relaxed">
+                      "{testimonial.content}"
+                    </blockquote>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-bold text-lg">{testimonial.name}</div>
+                        <div className="text-gray-400">{testimonial.role}</div>
+                        <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
+                          <MapPinIcon className="w-4 h-4" />
+                          {testimonial.location}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        {TESTIMONIALS.map((_, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setActiveTestimonial(idx)}
+                            className={`w-3 h-3 rounded-full transition-colors ${
+                              idx === activeTestimonial ? 'bg-cyan-500' : 'bg-gray-700'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Contact Form */}
+      <section id="contact" className="py-20 bg-gray-900">
+        <div className="container mx-auto px-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="grid md:grid-cols-2 gap-12">
+              <div>
+                <h2 className="text-4xl font-bold mb-6">Ready to Elevate Your Vision?</h2>
+                <p className="text-gray-400 mb-8">
+                  Contact us for a complimentary consultation and discover how our aerial cinematography 
+                  can transform your property marketing.
+                </p>
+                
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-cyan-500/20 to-blue-600/20 rounded-xl flex items-center justify-center">
+                      <PhoneIcon className="w-6 h-6 text-cyan-400" />
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">Call Us</div>
+                      <div className="text-lg font-semibold">(970) 555-ELYSIAN</div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-cyan-500/20 to-blue-600/20 rounded-xl flex items-center justify-center">
+                      <EnvelopeIcon className="w-6 h-6 text-cyan-400" />
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">Email</div>
+                      <div className="text-lg font-semibold">contact@elysianaerial.co</div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-cyan-500/20 to-blue-600/20 rounded-xl flex items-center justify-center">
+                      <MapPinIcon className="w-6 h-6 text-cyan-400" />
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">Based In</div>
+                      <div className="text-lg font-semibold">Aspen, Colorado</div>
+                      <div className="text-sm text-gray-400">Serving all of Colorado</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gray-800 rounded-2xl p-8 border border-gray-700">
+                <h3 className="text-2xl font-bold mb-6">Book Your Consultation</h3>
+                
+                {formSubmitted ? (
+                  <div className="text-center py-12">
+                    <CheckCircleIcon className="w-16 h-16 text-green-500 mx-auto mb-6" />
+                    <h4 className="text-2xl font-bold mb-3">Thank You!</h4>
+                    <p className="text-gray-400">
+                      We've received your inquiry and will contact you within 24 hours.
+                    </p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Full Name</label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.name}
+                        onChange={(e) => setFormData({...formData, name: e.target.value})}
+                        className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 outline-none transition"
+                        placeholder="John Smith"
+                      />
+                    </div>
+                    
+                    <div className="grid sm:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Email</label>
+                        <input
+                          type="email"
+                          required
+                          value={formData.email}
+                          onChange={(e) => setFormData({...formData, email: e.target.value})}
+                          className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 outline-none transition"
+                          placeholder="john@example.com"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Phone</label>
+                        <input
+                          type="tel"
+                          value={formData.phone}
+                          onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                          className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 outline-none transition"
+                          placeholder="(970) 555-0123"
                         />
                       </div>
                     </div>
+                    
                     <div>
-                      <h3 className="text-2xl font-bold text-white">Thomas Blackwood</h3>
-                      <p className="text-amber-200">Master Mason & Founder</p>
-                    </div>
-                  </div>
-                  <blockquote className="text-white text-lg italic mb-6 border-l-4 border-amber-400 pl-4 py-2">
-                    "In Asheville's mountains, a fireplace isn't just a heating appliance—it's where families gather to share stories after a day on the trails, where couples reconnect on winter evenings, and where history lives in the stones we carefully set. We don't just build fireplaces; we craft the heart of your home."
-                  </blockquote>
-                  <div className="flex flex-wrap gap-3">
-                    <span className="px-3 py-1 bg-amber-800/30 text-amber-200 rounded-full text-sm">25+ Years Experience</span>
-                    <span className="px-3 py-1 bg-amber-800/30 text-amber-200 rounded-full text-sm">NC Certified Mason</span>
-                    <span className="px-3 py-1 bg-amber-800/30 text-amber-200 rounded-full text-sm">Historic Preservation Specialist</span>
-                  </div>
-                </div>
-                <img 
-                  src="https://images.unsplash.com/photo-1569873616584-733d0680628b?auto=format&fit=crop&w=600&q=80" 
-                  alt="Artisan working on historic fireplace" 
-                  className="w-full h-64 object-cover"
-                />
-              </div>
-              
-              <div className="mt-8 bg-white rounded-2xl p-6 shadow-md border border-amber-100">
-                <div className="flex items-center mb-4">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-100 to-rose-100 flex items-center justify-center mr-4">
-                    <ShieldCheck className="w-6 h-6 text-amber-700" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900">Our Promise</h3>
-                    <p className="text-amber-700 font-medium">Zero-Risk Craftsmanship Guarantee</p>
-                  </div>
-                </div>
-                <p className="text-gray-600">
-                  If you're not completely satisfied with our workmanship within the first year, we'll redo the entire project at no cost. Plus, all structural elements carry a 25-year warranty.
-                </p>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* Contact Section - Split layout with form */}
-      <section id="contact" className="py-24 bg-gradient-to-br from-amber-50 to-white">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="space-y-10 max-w-xl"
-            >
-              <div>
-                <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-                  Begin Your <span className="text-amber-800">Hearth Project</span>
-                </h2>
-                <p className="text-xl text-gray-600 mb-8">
-                  Let's create a fireplace that becomes the soul of your Asheville home. Schedule a complimentary consultation with our master craftsman.
-                </p>
-              </div>
-
-              <div className="space-y-6">
-                <div className="flex items-start space-x-4">
-                  <div className="mt-1 p-3 bg-gradient-to-br from-amber-100 to-rose-100 rounded-xl">
-                    <MapPin className="w-6 h-6 text-amber-700" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">Visit Our Workshop</p>
-                    <p className="text-gray-600">127 Masonry Lane, Asheville, NC 28801</p>
-                    <a href="#" className="text-amber-700 hover:underline mt-1 inline-block">Get Directions</a>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-4">
-                  <div className="mt-1 p-3 bg-gradient-to-br from-amber-100 to-rose-100 rounded-xl">
-                    <Phone className="w-6 h-6 text-amber-700" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">Call Us Directly</p>
-                    <p className="text-gray-600">(828) 555-0198</p>
-                    <p className="text-sm text-gray-500 mt-1">Mon-Fri: 8am-5pm • Sat: By Appointment</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-4">
-                  <div className="mt-1 p-3 bg-gradient-to-br from-amber-100 to-rose-100 rounded-xl">
-                    <Mail className="w-6 h-6 text-amber-700" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">Email Our Team</p>
-                    <p className="text-gray-600">projects@hearthandhammer.com</p>
-                    <a href="#" className="text-amber-700 hover:underline mt-1 inline-block">Send Message</a>
-                  </div>
-                </div>
-
-                <div className="pt-6 border-t border-amber-200">
-                  <p className="font-medium mb-4">Follow Our Craftsmanship Journey</p>
-                  <div className="flex space-x-4">
-                    {[Instagram, Facebook, Twitter].map((Icon, i) => (
-                      <a 
-                        key={i} 
-                        href="#" 
-                        className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-100 to-rose-100 flex items-center justify-center text-amber-800 hover:from-amber-200 hover:to-rose-200 transition-colors"
+                      <label className="block text-sm font-medium mb-2">Service Interest</label>
+                      <select
+                        required
+                        value={formData.service}
+                        onChange={(e) => setFormData({...formData, service: e.target.value})}
+                        className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 outline-none transition"
                       >
-                        <Icon className="w-6 h-6" />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="bg-white rounded-3xl shadow-xl p-8 md:p-10 border border-amber-100"
-            >
-              <div className="text-center mb-8">
-                <div className="inline-block bg-amber-100 text-amber-800 text-sm font-medium px-4 py-1.5 rounded-full mb-4">
-                  Complimentary Consultation
-                </div>
-                <h3 className="text-2xl font-bold text-gray-900">Project Inquiry</h3>
-                <p className="text-gray-600 mt-2">Fill out this form and Thomas will contact you within 24 hours</p>
-              </div>
-              
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                    <input
-                      id="name"
-                      type="text"
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition"
-                      placeholder="John & Mary Smith"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                    <input
-                      id="phone"
-                      type="tel"
-                      required
-                      value={formData.phone}
-                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition"
-                      placeholder="(828) 555-0123"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                    <input
-                      id="email"
-                      type="email"
-                      required
-                      value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition"
-                      placeholder="smith.family@email.com"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="projectType" className="block text-sm font-medium text-gray-700 mb-1">Project Type</label>
-                    <select
-                      id="projectType"
-                      value={formData.projectType}
-                      onChange={(e) => setFormData({...formData, projectType: e.target.value})}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition bg-white"
+                        <option value="">Select a service</option>
+                        <option value="real-estate">Real Estate Cinematics</option>
+                        <option value="commercial">Commercial Development</option>
+                        <option value="events">Event Coverage</option>
+                        <option value="other">Other Project</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Project Details</label>
+                      <textarea
+                        value={formData.message}
+                        onChange={(e) => setFormData({...formData, message: e.target.value})}
+                        rows={4}
+                        className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 outline-none transition"
+                        placeholder="Tell us about your project..."
+                      />
+                    </div>
+                    
+                    <button
+                      type="submit"
+                      className="w-full py-4 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-lg font-semibold hover:opacity-90 transition-opacity"
                     >
-                      <option value="">Select a project type</option>
-                      <option value="new-install">New Installation</option>
-                      <option value="restoration">Historic Restoration</option>
-                      <option value="conversion">Fuel Conversion</option>
-                      <option value="repair">Repair/Maintenance</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div>
-                  <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">Project Details</label>
-                  <textarea
-                    id="message"
-                    rows={4}
-                    value={formData.message}
-                    onChange={(e) => setFormData({...formData, message: e.target.value})}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition"
-                    placeholder="Tell us about your home, vision, and timeline..."
-                  ></textarea>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={submitStatus === 'submitting'}
-                  className={`w-full bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 text-white font-bold py-4 px-6 rounded-xl text-lg shadow-md transition-all transform ${
-                    submitStatus === 'submitting' ? 'opacity-75 cursor-not-allowed' : 'hover:scale-[1.02]'
-                  }`}
-                >
-                  {submitStatus === 'submitting' ? (
-                    <span className="flex items-center justify-center">
-                      <Loader2 className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" />
-                      Sending Request...
-                    </span>
-                  ) : submitStatus === 'success' ? (
-                    <span className="flex items-center justify-center">
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                      </svg>
-                      Request Received! Thomas will contact you soon.
-                    </span>
-                  ) : (
-                    "Schedule Consultation"
-                  )}
-                </button>
-
-                {submitStatus === 'error' && (
-                  <p className="text-red-500 text-center text-sm mt-2">
-                    Something went wrong. Please try again or call us directly at (828) 555-0198.
-                  </p>
+                      Request Free Consultation
+                    </button>
+                  </form>
                 )}
-                
-                <p className="text-center text-sm text-gray-500 mt-2">
-                  We respect your privacy. Your information will only be used to discuss your project.
-                </p>
-              </form>
-            </motion.div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-gradient-to-t from-stone-900 to-amber-900 text-white pt-20 pb-12">
+      <footer className="bg-gray-950 border-t border-gray-800 py-12">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-16">
-            <div>
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="bg-amber-200 p-2 rounded-lg">
-                  <Flame className="w-7 h-7 text-amber-800" />
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            <div className="mb-8 md:mb-0">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg" />
+                <div>
+                  <div className="font-bold text-lg">Elysian Aerial Imaging</div>
+                  <div className="text-sm text-gray-500">FAA Part 107 Certified</div>
                 </div>
-                <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-200 to-white">
-                  Hearth & Hammer
-                </span>
               </div>
-              <p className="text-amber-100 mb-6 max-w-xs">
-                Crafting the heart of Asheville homes since 2008. We blend historic craftsmanship with modern engineering to create fireplaces that last generations.
+              <p className="text-gray-500 text-sm max-w-md">
+                Professional drone cinematography services for luxury properties and commercial developments in Colorado.
               </p>
-              <div className="flex space-x-4">
-                {[Instagram, Facebook, Twitter].map((Icon, i) => (
-                  <a 
-                    key={i} 
-                    href="#" 
-                    className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-                  >
-                    <Icon className="w-5 h-5" />
-                  </a>
-                ))}
-              </div>
             </div>
             
-            <div>
-              <h3 className="text-xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-amber-200 to-white">Our Services</h3>
-              <ul className="space-y-3">
-                {PROJECT_CATEGORIES.map((service) => (
-                  <li key={service.id}>
-                    <a href="#" className="text-amber-100 hover:text-white transition-colors flex items-center group">
-                      <span className="w-2 h-2 bg-amber-400 rounded-full mr-3 group-hover:bg-white transition-colors"></span>
-                      {service.title}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            
-            <div>
-              <h3 className="text-xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-amber-200 to-white">Service Areas</h3>
-              <ul className="space-y-2">
-                {[
-                  "Asheville", 
-                  "Black Mountain", 
-                  "Biltmore Forest", 
-                  "Weaverville", 
-                  "Hendersonville",
-                  "Waynesville"
-                ].map((area, i) => (
-                  <li key={i} className="flex items-start">
-                    <MapPin className="w-4 h-4 text-amber-400 mt-1 mr-2 flex-shrink-0" />
-                    <span className="text-amber-100">{area}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            
-            <div>
-              <h3 className="text-xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-amber-200 to-white">Contact</h3>
-              <ul className="space-y-4">
-                <li className="flex items-start">
-                  <MapPin className="w-5 h-5 text-amber-400 mt-1 mr-3 flex-shrink-0" />
-                  <span className="text-amber-100">127 Masonry Lane<br/>Asheville, NC 28801</span>
-                </li>
-                <li className="flex items-center">
-                  <Phone className="w-5 h-5 text-amber-400 mr-3 flex-shrink-0" />
-                  <a href="tel:8285550198" className="text-amber-100 hover:text-white transition-colors">(828) 555-0198</a>
-                </li>
-                <li className="flex items-center">
-                  <Mail className="w-5 h-5 text-amber-400 mr-3 flex-shrink-0" />
-                  <a href="mailto:projects@hearthandhammer.com" className="text-amber-100 hover:text-white transition-colors">projects@hearthandhammer.com</a>
-                </li>
-                <li className="pt-4 border-t border-amber-800/30">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-300 to-rose-400 flex items-center justify-center mr-3">
-                      <ShieldCheck className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-white">Licensed & Insured</p>
-                      <p className="text-amber-200 text-sm">NC Masonry License #M-125489</p>
-                    </div>
-                  </div>
-                </li>
-              </ul>
+            <div className="text-center md:text-right">
+              <div className="text-sm text-gray-500 mb-4">Business Hours</div>
+              <div className="font-semibold">Mon - Fri: 8AM - 6PM</div>
+              <div className="font-semibold">Sat - Sun: 9AM - 4PM</div>
+              <div className="text-sm text-gray-500 mt-2">Emergency flights available</div>
             </div>
           </div>
           
-          <div className="border-t border-amber-800/30 pt-10 text-center text-amber-300">
-            <div className="max-w-4xl mx-auto space-y-4">
-              <p className="text-sm">
-                © {new Date().getFullYear()} Hearth & Hammer Masonry. All rights reserved. Proud members of the Asheville Area Chamber of Commerce, National Chimney Sweep Guild, and Historic Asheville Preservation Society.
-              </p>
-              <p className="text-xs max-w-2xl mx-auto">
-                All project images are actual completed works in Western North Carolina homes. Before/after transformations shown with homeowner permission. 25-year structural warranty covers all mortar joints and foundational elements.
-              </p>
-              <div className="flex justify-center space-x-6 text-sm pt-2">
-                <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
-                <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
-                <a href="#" className="hover:text-white transition-colors">Careers</a>
-                <a href="#" className="hover:text-white transition-colors">Press</a>
-              </div>
-            </div>
+          <div className="border-t border-gray-800 mt-12 pt-8 text-center text-gray-500 text-sm">
+            <p>© {new Date().getFullYear()} Elysian Aerial Imaging. All rights reserved.</p>
+            <p className="mt-2">Drone Services in Aspen, Vail, Telluride, Denver, and throughout Colorado</p>
           </div>
         </div>
       </footer>
-      
-      {/* Floating action button for desktop */}
-      <div className="hidden md:block fixed bottom-8 right-8 z-40">
-        <motion.a
-          href="#contact"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="bg-gradient-to-r from-amber-600 to-rose-600 text-white font-bold py-4 px-6 rounded-full shadow-xl flex items-center space-x-3"
-        >
-          <Phone className="w-5 h-5" />
-          <span>Schedule Consultation</span>
-        </motion.a>
+
+      {/* Image Modal */}
+      {selectedImage && (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+          <button
+            onClick={() => setSelectedImage(null)}
+            className="absolute top-4 right-4 p-2 bg-gray-900/80 rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            <XMarkIcon className="w-6 h-6" />
+          </button>
+          <img
+            src={selectedImage}
+            alt="Full size preview"
+            className="max-w-full max-h-[90vh] object-contain rounded-lg"
+          />
+        </div>
+      )}
+
+      {/* Floating CTA */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <button className="px-6 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-xl font-semibold shadow-xl hover:scale-105 transition-transform flex items-center gap-2">
+          <PhoneIcon className="w-5 h-5" />
+          <span className="hidden sm:inline">Book Now</span>
+          <ChevronRightIcon className="w-5 h-5" />
+        </button>
       </div>
     </div>
   );
