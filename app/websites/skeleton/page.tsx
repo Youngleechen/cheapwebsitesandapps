@@ -16,17 +16,17 @@ const ARTWORKS = [
   { 
     id: 'midnight-garden', 
     title: 'Midnight Garden',
-    prompt: 'Upload a serene night garden with glowing flowers under moonlight'
+    prompt: 'A tranquil night garden scene where moonlight filters through dense foliage, illuminating fantastical glowing flowers in soft blues, purples, and whites. Include subtle mist and quiet shadows to enhance serenity.'
   },
   { 
     id: 'neon-dreams', 
     title: 'Neon Dreams',
-    prompt: 'Upload vibrant neon cityscape at night with rain-slicked streets'
+    prompt: 'A vivid, rain-drenched cyberpunk cityscape at night, drenched in neon reflections—think pinks, cyans, and deep violets shimmering on wet asphalt. Include blurred motion of distant hover cars and storefront signs in Japanese or futuristic glyphs.'
   },
   { 
     id: 'ocean-memory', 
     title: 'Ocean Memory',
-    prompt: 'Upload abstract ocean waves with layered textures and gold light'
+    prompt: 'An emotive, abstract interpretation of ocean waves using layered textures—rippling blues, deep teals, and accents of molten gold light that suggest memory, longing, or the passage of time. Avoid realism; aim for poetic fluidity.'
   },
 ];
 
@@ -140,11 +140,11 @@ export default function GallerySkeleton() {
               {adminMode && (
                 <div className="p-3 border-t border-gray-700 space-y-2">
                   {!imageUrl && (
-                    <div className="flex items-start gap-2">
-                      <p className="text-xs text-purple-300 flex-1">{art.prompt}</p>
+                    <div className="flex flex-col gap-2">
+                      <p className="text-xs text-purple-300">{art.prompt}</p>
                       <button
                         onClick={() => copyPrompt(art.prompt, art.id)}
-                        className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded whitespace-nowrap"
+                        className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded self-start"
                         type="button"
                       >
                         {copiedId === art.id ? 'Copied!' : 'Copy Prompt'}
@@ -152,7 +152,7 @@ export default function GallerySkeleton() {
                     </div>
                   )}
                   <label className="block text-sm bg-purple-600 text-white px-3 py-1 rounded cursor-pointer inline-block">
-                    {uploading === art.id ? 'Uploading…' : 'Upload'}
+                    {uploading === art.id ? 'Uploading…' : 'Upload Image'}
                     <input
                       type="file"
                       accept="image/*"
@@ -174,7 +174,7 @@ export default function GallerySkeleton() {
 
       {adminMode && (
         <div className="mt-6 p-3 bg-purple-900/30 border border-purple-600 rounded text-sm">
-          👤 Admin mode active — you can upload and copy prompts.
+          👤 Admin mode active — you can upload images and copy detailed prompts.
         </div>
       )}
     </div>
