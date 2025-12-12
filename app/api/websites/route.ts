@@ -1,5 +1,4 @@
 // app/api/websites/route.ts
-
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
@@ -14,15 +13,14 @@ const EXCLUDED_FOLDERS = new Set([
   'api',
 ]);
 
-// Optional: beautify category names
-const CATEGORY_LABELS: Record<string, string> = {
-  'ecommerce': '🛒 E-Commerce',
+export const CATEGORY_LABELS: Record<string, string> = {
+  ecommerce: '🛒 E-Commerce',
   'local-business': '🏢 Local Business',
   'professional-services': '💼 Professional Services',
-  'portfolio': '🎨 Creative Portfolio',
-  'content': '📰 Content & Community',
-  'restaurant': '🍽️ Restaurant & Hospitality',
-  'saas': '🚀 Startup / SaaS / Tech',
+  portfolio: '🎨 Creative Portfolio',
+  content: '📰 Content & Community',
+  restaurant: '🍽️ Restaurant & Hospitality',
+  saas: '🚀 Startup / SaaS / Tech',
 };
 
 export async function GET() {
@@ -33,7 +31,6 @@ export async function GET() {
       return NextResponse.json([]);
     }
 
-    // Read all immediate subdirectories (which may contain categories like 'ecommerce/')
     const topLevelFolders = fs.readdirSync(websitesDir).filter((file) => {
       const fullPath = path.join(websitesDir, file);
       return (
@@ -58,7 +55,11 @@ export async function GET() {
         return fs.statSync(itemPath).isDirectory() && !file.startsWith('.');
       });
 
-      const categoryName = CATEGORY_LABELS[categoryFolder] || categoryFolder.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      const categoryName =
+        CATEGORY_LABELS[categoryFolder] ||
+        categoryFolder
+          .replace(/-/g, ' ')
+          .replace(/\b\w/g, (c) => c.toUpperCase());
 
       for (const item of items) {
         const id = `${categoryFolder}/${item}`;
@@ -66,13 +67,15 @@ export async function GET() {
 
         let title = item
           .replace(/-/g, ' ')
-          .replace(/\b\w/g, c => c.toUpperCase());
+          .replace(/\b\w/g, (c) => c.toUpperCase());
         let description = `Professional website for ${title}.`;
 
         if (fs.existsSync(pagePath)) {
           const content = fs.readFileSync(pagePath, 'utf8');
 
-          const metadataMatch = content.match(/export\s+const\s+metadata\s*=\s*(\{[^]*?\});?\s*(?:\n|$)/);
+          const metadataMatch = content.match(
+            /export\s+const\s+metadata\s*=\s*(\{[^]*?\});?\s*(?:\n|$)/
+          );
           if (metadataMatch) {
             const metadataStr = metadataMatch[1];
             const titleMatch = metadataStr.match(/title\s*:\s*['"`]([^'"`]*?)['"`]/);
@@ -90,7 +93,7 @@ export async function GET() {
           id,
           title,
           prompt: description,
-          categoryKey: categoryFolder,
+          categoryKey: categoryFolder, // exact folder name — must match route param
           categoryName,
         });
       }
