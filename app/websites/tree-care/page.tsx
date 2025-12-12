@@ -378,7 +378,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-6 text-sm">
-            <p>© {new Date().getFullYear()} Gryscol Tree Care. Built with ❤️ by CheapWebsites & Apps.</p>
+            <p>© {new Date().getFullYear()} Gryscol Tree Care.</p>
           </div>
         </div>
       </footer>
