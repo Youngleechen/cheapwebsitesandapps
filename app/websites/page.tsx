@@ -1,9 +1,10 @@
-// app/websites-showcase/page.tsx
+// app/websites/page.tsx
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,16 +22,6 @@ type WebsiteItem = {
   categoryName: string;
 };
 
-// Fisher-Yates shuffle
-function shuffleArray<T>(array: T[]): T[] {
-  const arr = [...array];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
 export default function WebsitesShowcase() {
   const [websites, setWebsites] = useState<WebsiteItem[]>([]);
   const [websiteImages, setWebsiteImages] = useState<{ [key: string]: string | null }>({});
@@ -39,9 +30,9 @@ export default function WebsitesShowcase() {
   const [uploading, setUploading] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const pathname = usePathname();
 
-  // Fetch websites
+  // Fetch website list from API
   useEffect(() => {
     const fetchWebsites = async () => {
       try {
@@ -59,7 +50,7 @@ export default function WebsitesShowcase() {
     fetchWebsites();
   }, []);
 
-  // Check admin
+  // Check admin status
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -95,7 +86,6 @@ export default function WebsitesShowcase() {
       for (const img of images) {
         const parts = img.path.split('/');
         if (parts.length >= 4 && parts[1] === GALLERY_PREFIX) {
-          // Reconstruct id as "category/site-slug"
           const siteId = `${parts[2]}/${parts[3]}`;
           if (websites.some(s => s.id === siteId) && !latestImagePerSite[siteId]) {
             latestImagePerSite[siteId] = img.path;
@@ -170,23 +160,17 @@ export default function WebsitesShowcase() {
     });
   };
 
-  // Extract unique categories for nav
-  const categories = useMemo(() => {
-    const catMap = new Map<string, string>();
-    websites.forEach(site => {
-      catMap.set(site.categoryKey, site.categoryName);
-    });
-    return Array.from(catMap.entries()).map(([key, name]) => ({ key, name }));
-  }, [websites]);
+  // Prepare category list for nav (from all websites)
+  const allCategories = Array.from(
+    new Map(
+      websites.map(site => [site.categoryKey, site.categoryName])
+    ).entries()
+  ).map(([key, name]) => ({ key, name }));
 
-  // Filter & shuffle logic
-  const displayedWebsites = useMemo(() => {
-    let filtered = websites;
-    if (selectedCategory) {
-      filtered = websites.filter(site => site.categoryKey === selectedCategory);
-    }
-    return shuffleArray(filtered);
-  }, [websites, selectedCategory]);
+  // Decide which websites to display
+  const displayedWebsites = pathname === '/websites'
+    ? [...websites].sort(() => Math.random() - 0.5)
+    : websites;
 
   if (loading && websites.length === 0) {
     return (
@@ -198,63 +182,72 @@ export default function WebsitesShowcase() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Hero */}
-      <div className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight">
-            Real Websites. Real Businesses.
-          </h1>
-          <p className="mt-2 text-gray-600 max-w-2xl">
-            A curated showcase of live sites built for independent makers, artisans, and service professionals across America.
-          </p>
-        </div>
-      </div>
-
-      {/* Category Filter Navbar */}
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 overflow-x-auto">
-          <div className="flex space-x-4 min-w-max">
-            <button
-              onClick={() => setSelectedCategory(null)}
-              className={`px-3 py-1.5 text-sm rounded-full whitespace-nowrap transition-colors ${
-                selectedCategory === null
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-700 hover:bg-gray-100'
+      {/* Sticky Category Navigation Bar */}
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 overflow-x-auto whitespace-nowrap">
+          <div className="flex space-x-2 md:space-x-3">
+            <Link
+              href="/websites"
+              className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors whitespace-nowrap ${
+                pathname === '/websites'
+                  ? 'bg-blue-100 text-blue-800'
+                  : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
-              All ({websites.length})
-            </button>
-            {categories.map(({ key, name }) => (
-              <button
+              All Sites (Random)
+            </Link>
+
+            {allCategories.map(({ key, name }) => (
+              <Link
                 key={key}
-                onClick={() => setSelectedCategory(key)}
-                className={`px-3 py-1.5 text-sm rounded-full whitespace-nowrap transition-colors ${
-                  selectedCategory === key
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
+                href={`/websites/${key}`}
+                className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors whitespace-nowrap ${
+                  pathname === `/websites/${key}`
+                    ? 'bg-gray-800 text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                {name} ({websites.filter(w => w.categoryKey === key).length})
-              </button>
+                {name}
+              </Link>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Gallery Grid */}
+      {/* Hero Section — Only on Main Page */}
+      {pathname === '/websites' && (
+        <div className="bg-white border-b border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight">
+              Real Websites. Real Businesses.
+            </h1>
+            <p className="mt-2 text-gray-600 max-w-2xl">
+              A curated showcase of live sites built for independent makers, artisans, and service professionals across America.
+              <br />
+              <span className="text-sm text-gray-500 mt-2 inline-block">
+                Refresh the page to see a new random selection.
+              </span>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Website Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {displayedWebsites.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
-            {selectedCategory ? 'No websites in this category.' : 'No websites found.'}
+            {pathname === '/websites'
+              ? 'No websites found. Add some under app/websites/ (e.g., ecommerce/my-shop).'
+              : 'No websites in this category.'}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {displayedWebsites.map((site) => {
               const imageUrl = websiteImages[site.id] || null;
               return (
                 <div key={site.id} className="group relative">
                   <Link href={`/websites/${site.id}`} className="block">
-                    <div className="aspect-[16/9] sm:aspect-[21/9] overflow-hidden rounded-xl bg-gray-100 shadow-sm transition-all duration-300 group-hover:shadow-md">
+                    <div className="aspect-[16/9] overflow-hidden rounded-xl bg-gray-100 shadow-sm transition-all duration-300 group-hover:shadow-md">
                       {imageUrl ? (
                         <img
                           src={imageUrl}
@@ -266,7 +259,9 @@ export default function WebsitesShowcase() {
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <div className="text-gray-400 text-lg font-medium">Preview image pending</div>
+                          <div className="text-gray-400 text-lg font-medium">
+                            Preview image pending
+                          </div>
                         </div>
                       )}
                     </div>
@@ -275,10 +270,9 @@ export default function WebsitesShowcase() {
                       <h3 className="text-xl font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
                         {site.title}
                       </h3>
-                      <p className="mt-1 text-gray-600 text-sm">{site.prompt}</p>
-                      <div className="mt-1 text-xs text-gray-500">
-                        {site.categoryName}
-                      </div>
+                      <p className="mt-1 text-gray-600 text-sm line-clamp-2">
+                        {site.prompt}
+                      </p>
                     </div>
                   </Link>
 
@@ -313,7 +307,7 @@ export default function WebsitesShowcase() {
 
       {adminMode && (
         <div className="fixed bottom-4 right-4 bg-blue-600 text-white text-xs px-3 py-2 rounded shadow-lg">
-          👤 Admin Mode
+          👤 Admin Mode: Upload preview images for each site
         </div>
       )}
     </div>
