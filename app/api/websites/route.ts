@@ -14,6 +14,17 @@ const EXCLUDED_FOLDERS = new Set([
   'api',
 ]);
 
+// Map folder prefixes to human-readable categories
+const CATEGORY_MAP: Record<string, string> = {
+  'ecommerce': 'E-commerce',
+  'local-business': 'Local Business',
+  'professional-services': 'Professional Services',
+  'portfolio': 'Creative Portfolio',
+  'content': 'Content & Community',
+  'restaurant': 'Restaurant & Hospitality',
+  'saas': 'Startup / SaaS / Tech',
+};
+
 export async function GET() {
   try {
     const websitesDir = path.join(process.cwd(), 'app', 'websites');
@@ -34,10 +45,19 @@ export async function GET() {
     const websites = [];
 
     for (const id of folders) {
+      // Parse category from folder path like "ecommerce/brand-name"
+      let category = 'Uncategorized';
+      const parts = id.split('/');
+      if (parts.length >= 2) {
+        const prefix = parts[0];
+        category = CATEGORY_MAP[prefix] || 'Other';
+      }
+
       const pagePath = path.join(websitesDir, id, 'page.tsx');
 
-      // Default: derive from folder name
       let title = id
+        .split('/')
+        .pop()! // get last part (e.g., "luxury-candle-brand")
         .replace(/-/g, ' ')
         .replace(/\b\w/g, (c) => c.toUpperCase());
       let description = `Professional website for ${title}.`;
@@ -45,22 +65,18 @@ export async function GET() {
       if (fs.existsSync(pagePath)) {
         const content = fs.readFileSync(pagePath, 'utf8');
 
-        // Try to extract metadata object as a whole (multiline-safe)
         const metadataMatch = content.match(/export\s+const\s+metadata\s*=\s*(\{[^]*?\});?\s*(?:\n|$)/);
         if (metadataMatch) {
           const metadataStr = metadataMatch[1];
 
-          // Extract title
           const titleMatch = metadataStr.match(/title\s*:\s*['"`]([^'"`]*?)['"`]/);
           if (titleMatch) title = titleMatch[1].trim();
 
-          // Extract description
           const descMatch = metadataStr.match(/description\s*:\s*['"`]([^'"`]*?)['"`]/);
           if (descMatch) description = descMatch[1].trim();
         }
       }
 
-      // Optional: warn in dev if description is generic
       if (process.env.NODE_ENV === 'development' && description.includes('Professional website for')) {
         console.warn(`⚠️ Missing custom description in websites/${id}/page.tsx`);
       }
@@ -69,8 +85,17 @@ export async function GET() {
         id,
         title,
         prompt: description,
+        category, // ✅ now included
       });
     }
+
+    // Optional: sort by category, then title
+    websites.sort((a, b) => {
+      if (a.category !== b.category) {
+        return a.category.localeCompare(b.category);
+      }
+      return a.title.localeCompare(b.title);
+    });
 
     return NextResponse.json(websites);
   } catch (error) {
