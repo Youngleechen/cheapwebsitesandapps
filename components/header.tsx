@@ -24,7 +24,6 @@ export function Header() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      // Clear prompt if user logs in
       if (session?.user) {
         setShowLoginPrompt(false);
         if (loginPromptTimeoutRef.current) {
@@ -33,7 +32,6 @@ export function Header() {
       }
     });
 
-    // Set a 5-second delay to show login prompt if not logged in
     loginPromptTimeoutRef.current = setTimeout(() => {
       if (!user) {
         setShowLoginPrompt(true);
@@ -50,12 +48,10 @@ export function Header() {
 
   const handleAuth = () => {
     if (user) {
-      // Logout
       supabase.auth.signOut().then(() => {
         router.refresh();
       });
     } else {
-      // Redirect to sign-in page
       router.push('/auth/signin');
     }
   };
@@ -67,33 +63,41 @@ export function Header() {
     }
   };
 
+  // Updated nav for whynowebsite.com
   const navItems = [
-    { name: 'Portfolio', href: '/portfolio' },
+    { name: 'Showcase', href: '/websites' },
+    { name: 'Build Yours', href: '/builder' },
+    { name: 'Inspiration', href: '/inspiration' },
     { name: 'Blog', href: '/blog' },
-    { name: 'Editor', href: '/editor' },
-    { name: 'Write', href: '/write' },
-    { name: 'Image Analysis', href: '/images' },
+    { name: 'About', href: '/about' },
   ];
 
   return (
     <>
-      <header className="site-header-bp sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-200 shadow-sm">
-        <div className="container-bp mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 md:h-20">
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
             <div className="flex-shrink-0">
-              <Link href="/" className="text-xl md:text-2xl font-bold text-gray-900 hover:text-indigo-600 transition-colors">
-                Before Publishing
+              <Link
+                href="/"
+                className="text-xl font-bold text-gray-900 hover:text-indigo-600 transition-colors"
+                aria-label="WhyNowWebsite Home"
+              >
+                <span className="text-indigo-600">Why</span>
+                <span className="font-mono">Now</span>
+                <span className="text-gray-500">.website</span>
               </Link>
             </div>
 
+            {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center space-x-1">
               {navItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                     pathname === item.href
-                      ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                      ? 'bg-indigo-50 text-indigo-700'
                       : 'text-gray-600 hover:text-indigo-600 hover:bg-gray-50'
                   }`}
                 >
@@ -102,21 +106,22 @@ export function Header() {
               ))}
               <button
                 onClick={handleAuth}
-                className={`ml-4 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                className={`ml-3 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
                   user
-                    ? 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-100'
-                    : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md hover:shadow-lg'
+                    ? 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                    : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow hover:shadow-md'
                 }`}
               >
-                {user ? 'Logout' : 'Login'}
+                {user ? 'Account' : 'Get Started'}
               </button>
             </nav>
 
+            {/* Mobile Menu Button */}
             <div className="md:hidden flex items-center">
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="p-2 rounded-md text-gray-700 hover:text-indigo-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
-                aria-label="Toggle navigation menu"
+                className="p-2 rounded-md text-gray-700 hover:text-indigo-600 hover:bg-gray-100 focus:outline-none"
+                aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
               >
                 {isMenuOpen ? (
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -131,14 +136,15 @@ export function Header() {
             </div>
           </div>
 
+          {/* Mobile Navigation */}
           {isMenuOpen && (
-            <div className="md:hidden py-4 border-t border-gray-200">
+            <div className="md:hidden py-4 border-t border-gray-100">
               <div className="flex flex-col space-y-2">
                 {navItems.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`px-4 py-2.5 rounded-lg text-base font-medium transition-colors ${
+                    className={`px-4 py-2.5 rounded-lg font-medium ${
                       pathname === item.href
                         ? 'bg-indigo-50 text-indigo-700'
                         : 'text-gray-700 hover:bg-gray-50 hover:text-indigo-600'
@@ -153,13 +159,13 @@ export function Header() {
                     handleAuth();
                     setIsMenuOpen(false);
                   }}
-                  className={`mt-2 px-4 py-2.5 rounded-lg text-base font-semibold ${
+                  className={`mt-3 px-4 py-2.5 rounded-lg font-semibold text-center ${
                     user
-                      ? 'bg-red-50 text-red-700 hover:bg-red-100'
+                      ? 'bg-gray-100 text-gray-800 hover:bg-gray-200'
                       : 'bg-indigo-600 text-white hover:bg-indigo-700'
                   }`}
                 >
-                  {user ? 'Logout' : 'Login'}
+                  {user ? 'My Account' : 'Get Started'}
                 </button>
               </div>
             </div>
@@ -167,52 +173,47 @@ export function Header() {
         </div>
       </header>
 
-      {/* Login Prompt Modal */}
+      {/* Login Prompt – Brand-aligned */}
       {showLoginPrompt && !user && (
         <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center px-4 pb-4 sm:p-6">
           <div
-            className="fixed inset-0 transition-opacity"
-            aria-hidden="true"
+            className="fixed inset-0 bg-black bg-opacity-40 transition-opacity"
             onClick={dismissPrompt}
-          >
-            <div className="absolute inset-0 bg-gray-900 opacity-50"></div>
-          </div>
-
-          <div className="relative bg-white rounded-xl shadow-lg p-6 max-w-md w-full transform transition-all">
+            aria-hidden="true"
+          />
+          <div className="relative bg-white rounded-xl shadow-xl p-6 max-w-md w-full transform transition-all">
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Welcome!</h3>
+                <h3 className="text-lg font-bold text-gray-900">Build your standout website</h3>
                 <p className="mt-2 text-sm text-gray-600">
-                  To access all features like saving drafts or managing your portfolio, please log in.
+                  Log in to save your custom designs, manage projects, and publish with confidence.
                 </p>
               </div>
               <button
                 onClick={dismissPrompt}
                 className="text-gray-400 hover:text-gray-500"
-                aria-label="Close"
+                aria-label="Close prompt"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div className="mt-4 flex justify-end space-x-3">
+            <div className="mt-5 flex justify-end space-x-3">
               <button
-                type="button"
                 onClick={dismissPrompt}
-                className="px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
+                className="px-3.5 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100"
               >
-                Maybe Later
+                Not now
               </button>
               <button
-                type="button"
                 onClick={() => {
                   dismissPrompt();
                   handleAuth();
                 }}
-                className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm"
+                className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-sm"
               >
-                Log In
+                Start Building
               </button>
             </div>
           </div>
