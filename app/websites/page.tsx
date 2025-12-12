@@ -4,7 +4,6 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -30,7 +29,7 @@ export default function WebsitesShowcase() {
   const [uploading, setUploading] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const pathname = usePathname();
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null); // New state for filter
 
   // Fetch website list from API
   useEffect(() => {
@@ -160,17 +159,36 @@ export default function WebsitesShowcase() {
     });
   };
 
-  // Prepare category list for nav (from all websites)
-  const allCategories = Array.from(
-    new Map(
-      websites.map(site => [site.categoryKey, site.categoryName])
-    ).entries()
-  ).map(([key, name]) => ({ key, name }));
+  // Group websites by category and shuffle within each group
+  const groupedWebsites: Record<string, WebsiteItem[]> = {};
+  websites.forEach(site => {
+    if (!groupedWebsites[site.categoryKey]) {
+      groupedWebsites[site.categoryKey] = [];
+    }
+    groupedWebsites[site.categoryKey].push(site);
+  });
 
-  // Decide which websites to display
-  const displayedWebsites = pathname === '/websites'
-    ? [...websites].sort(() => Math.random() - 0.5)
-    : websites;
+  // Shuffle sites within each category
+  Object.keys(groupedWebsites).forEach(categoryKey => {
+    const shuffled = [...groupedWebsites[categoryKey]].sort(() => Math.random() - 0.5);
+    groupedWebsites[categoryKey] = shuffled;
+  });
+
+  // Get unique categories for the nav bar
+  const categories = Object.keys(groupedWebsites).map(key => ({
+    key: key,
+    name: groupedWebsites[key][0]?.categoryName || key
+  }));
+
+  // Filter websites based on selected category
+  const displayedWebsites = selectedCategory
+    ? groupedWebsites[selectedCategory] || []
+    : websites; // Show all if no category selected
+
+  // Create a single array for display, maintaining category grouping
+  const displayGroups = selectedCategory
+    ? { [selectedCategory]: groupedWebsites[selectedCategory] || [] }
+    : groupedWebsites;
 
   if (loading && websites.length === 0) {
     return (
@@ -182,126 +200,120 @@ export default function WebsitesShowcase() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Sticky Category Navigation Bar */}
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 overflow-x-auto whitespace-nowrap">
-          <div className="flex space-x-2 md:space-x-3">
-            <Link
-              href="/websites"
-              className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors whitespace-nowrap ${
-                pathname === '/websites'
-                  ? 'bg-blue-100 text-blue-800'
-                  : 'text-gray-600 hover:bg-gray-100'
+      {/* Hero */}
+      <div className="bg-white border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight">
+            Real Websites. Real Businesses.
+          </h1>
+          <p className="mt-2 text-gray-600 max-w-2xl">
+            A curated showcase of live sites built for independent makers, artisans, and service professionals across America.
+          </p>
+        </div>
+      </div>
+
+      {/* Category Navigation Bar */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 overflow-x-auto">
+          <div className="flex space-x-4">
+            <button
+              onClick={() => setSelectedCategory(null)}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                selectedCategory === null
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
               }`}
             >
-              All Sites (Random)
-            </Link>
-
-            {allCategories.map(({ key, name }) => (
-              <Link
+              All Categories
+            </button>
+            {categories.map(({ key, name }) => (
+              <button
                 key={key}
-                href={`/websites/${key}`}
-                className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors whitespace-nowrap ${
-                  pathname === `/websites/${key}`
-                    ? 'bg-gray-800 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
+                onClick={() => setSelectedCategory(key)}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  selectedCategory === key
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 {name}
-              </Link>
+              </button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Hero Section — Only on Main Page */}
-      {pathname === '/websites' && (
-        <div className="bg-white border-b border-gray-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight">
-              Real Websites. Real Businesses.
-            </h1>
-            <p className="mt-2 text-gray-600 max-w-2xl">
-              A curated showcase of live sites built for independent makers, artisans, and service professionals across America.
-              <br />
-              <span className="text-sm text-gray-500 mt-2 inline-block">
-                Refresh the page to see a new random selection.
-              </span>
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Website Grid */}
+      {/* Showcase Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        {displayedWebsites.length === 0 ? (
+        {Object.entries(displayGroups).length === 0 ? (
           <div className="text-center py-12 text-gray-500">
-            {pathname === '/websites'
-              ? 'No websites found. Add some under app/websites/ (e.g., ecommerce/my-shop).'
-              : 'No websites in this category.'}
+            No websites found. Create folders under <code className="bg-gray-100 px-1 rounded">app/websites/</code> (e.g., <code>ecommerce/my-store</code>).
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {displayedWebsites.map((site) => {
-              const imageUrl = websiteImages[site.id] || null;
-              return (
-                <div key={site.id} className="group relative">
-                  <Link href={`/websites/${site.id}`} className="block">
-                    <div className="aspect-[16/9] overflow-hidden rounded-xl bg-gray-100 shadow-sm transition-all duration-300 group-hover:shadow-md">
-                      {imageUrl ? (
-                        <img
-                          src={imageUrl}
-                          alt={site.title}
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                          loading="lazy"
-                          width={1200}
-                          height={675}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <div className="text-gray-400 text-lg font-medium">
-                            Preview image pending
-                          </div>
+          Object.entries(displayGroups).map(([categoryKey, sites]) => (
+            <div key={categoryKey} className="mb-12">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                {sites[0]?.categoryName || categoryKey}
+              </h2>
+              <div className="grid grid-cols-1 gap-8">
+                {sites.map((site) => {
+                  const imageUrl = websiteImages[site.id] || null;
+                  return (
+                    <div key={site.id} className="group relative">
+                      <Link href={`/websites/${site.id}`} className="block">
+                        <div className="aspect-[16/9] sm:aspect-[21/9] overflow-hidden rounded-xl bg-gray-100 shadow-sm transition-all duration-300 group-hover:shadow-md">
+                          {imageUrl ? (
+                            <img
+                              src={imageUrl}
+                              alt={site.title}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              loading="lazy"
+                              width={1200}
+                              height={675}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <div className="text-gray-400 text-lg font-medium">Preview image pending</div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mt-4">
+                          <h3 className="text-xl font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                            {site.title}
+                          </h3>
+                          <p className="mt-1 text-gray-600 text-sm">{site.prompt}</p>
+                        </div>
+                      </Link>
+
+                      {adminMode && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          {!imageUrl && (
+                            <button
+                              onClick={() => copyPrompt(site.prompt, site.id)}
+                              className="text-xs bg-gray-800 text-white px-2 py-1 rounded hover:bg-gray-700"
+                              type="button"
+                            >
+                              {copiedId === site.id ? 'Copied!' : 'Copy Description'}
+                            </button>
+                          )}
+                          <label className="text-xs bg-blue-600 text-white px-2 py-1 rounded cursor-pointer">
+                            {uploading === site.id ? 'Uploading…' : 'Upload Preview'}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleUpload(e, site.id)}
+                              className="hidden"
+                            />
+                          </label>
                         </div>
                       )}
                     </div>
-
-                    <div className="mt-4">
-                      <h3 className="text-xl font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
-                        {site.title}
-                      </h3>
-                      <p className="mt-1 text-gray-600 text-sm line-clamp-2">
-                        {site.prompt}
-                      </p>
-                    </div>
-                  </Link>
-
-                  {adminMode && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {!imageUrl && (
-                        <button
-                          onClick={() => copyPrompt(site.prompt, site.id)}
-                          className="text-xs bg-gray-800 text-white px-2 py-1 rounded hover:bg-gray-700"
-                          type="button"
-                        >
-                          {copiedId === site.id ? 'Copied!' : 'Copy Description'}
-                        </button>
-                      )}
-                      <label className="text-xs bg-blue-600 text-white px-2 py-1 rounded cursor-pointer">
-                        {uploading === site.id ? 'Uploading…' : 'Upload Preview'}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => handleUpload(e, site.id)}
-                          className="hidden"
-                        />
-                      </label>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))
         )}
       </div>
 
