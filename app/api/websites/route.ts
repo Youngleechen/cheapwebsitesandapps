@@ -85,7 +85,7 @@ export async function GET() {
         id,
         title,
         prompt: description,
-        category, // ✅ now included
+        category, // ✅ This is what was missing!
       });
     }
 
