@@ -1,331 +1,199 @@
-'use client';
-
-import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+// app/page.tsx
+import { Header } from '@/components/Header';
 import Link from 'next/link';
+import { ChevronRightIcon } from '@heroicons/react/20/solid';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// Define your live demos — pulled from your taxonomy
+const DEMOS = [
+  {
+    id: 'vegan-bakery-asheville',
+    title: 'Sunseed Hearth — Vegan Bakery',
+    location: 'Asheville, NC',
+    description: 'Plant-based pastries, ethical sourcing, warm community space.',
+    category: 'Restaurant & Hospitality',
+    slug: '/vegan-bakery',
+    cta: 'View Live Site',
+  },
+  {
+    id: 'alpine-tree-surgeons',
+    title: 'Alpine Tree Surgeons',
+    location: 'Bend, OR',
+    description: 'Certified arborists offering emergency care, pruning & removal.',
+    category: 'Local Business',
+    slug: '/tree-service',
+    cta: 'See Full Site',
+  },
+  {
+    id: 'veridian-legal',
+    title: 'Veridian Legal Group',
+    location: 'Austin, TX',
+    description: 'Boutique family law firm focused on mediation & clarity.',
+    category: 'Professional Services',
+    slug: '/law-firm',
+    cta: 'Explore Site',
+  },
+  {
+    id: 'wildroot-skincare',
+    title: 'Wildroot Botanicals',
+    location: 'Portland, ME',
+    description: 'Small-batch organic skincare with zero-waste packaging.',
+    category: 'E-commerce',
+    slug: '/skincare',
+    cta: 'Live Demo',
+  },
+  {
+    id: 'ember-yoga-studio',
+    title: 'Ember Movement Studio',
+    location: 'Santa Fe, NM',
+    description: 'Trauma-informed yoga, workshops, and holistic wellness.',
+    category: 'Content & Community',
+    slug: '/yoga-studio',
+    cta: 'Visit Site',
+  },
+  {
+    id: 'coastal-arch-design',
+    title: 'Coastal Frame Architecture',
+    location: 'Charleston, SC',
+    description: 'Sustainable residential design blending heritage & innovation.',
+    category: 'Creative Portfolio',
+    slug: '/architecture',
+    cta: 'View Portfolio',
+  },
+];
 
-const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
-const GALLERY_PREFIX = 'websites_preview';
-
-type Website = {
-  id: string;
-  title: string;
-  prompt: string;
-  category: string;
-};
-
-export default function WebsitesShowcase() {
-  const [websites, setWebsites] = useState<Website[]>([]);
-  const [websiteImages, setWebsiteImages] = useState<{ [key: string]: string | null }>({});
-  const [userId, setUserId] = useState<string | null>(null);
-  const [adminMode, setAdminMode] = useState(false);
-  const [uploading, setUploading] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  // Fetch websites
-  useEffect(() => {
-    const fetchWebsites = async () => {
-      try {
-        const res = await fetch('/api/websites');
-        if (!res.ok) throw new Error('Failed to fetch websites');
-        const data: Website[] = await res.json();
-        setWebsites(data);
-      } catch (err) {
-        console.error('Failed to load websites:', err);
-        setWebsites([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchWebsites();
-  }, []);
-
-  // Check admin status
-  useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const uid = session?.user.id || null;
-      setUserId(uid);
-      setAdminMode(uid === ADMIN_USER_ID);
-    };
-    checkUser();
-  }, []);
-
-  // Load preview images
-  useEffect(() => {
-    if (websites.length === 0) return;
-
-    const loadImages = async () => {
-      const initialState: { [key: string]: string | null } = {};
-      websites.forEach(site => initialState[site.id] = null);
-
-      const { data: images, error } = await supabase
-        .from('images')
-        .select('path, created_at')
-        .eq('user_id', ADMIN_USER_ID)
-        .like('path', `${ADMIN_USER_ID}/${GALLERY_PREFIX}/%`)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error loading images:', error);
-        setWebsiteImages(initialState);
-        return;
-      }
-
-      const latestImagePerSite: Record<string, string> = {};
-      for (const img of images) {
-        const parts = img.path.split('/');
-        if (parts.length >= 4 && parts[1] === GALLERY_PREFIX) {
-          const siteId = parts[2];
-          if (websites.some(s => s.id === siteId) && !latestImagePerSite[siteId]) {
-            latestImagePerSite[siteId] = img.path;
-          }
-        }
-      }
-
-      websites.forEach(site => {
-        if (latestImagePerSite[site.id]) {
-          const url = supabase.storage
-            .from('user_images')
-            .getPublicUrl(latestImagePerSite[site.id]).data.publicUrl;
-          initialState[site.id] = url;
-        }
-      });
-
-      setWebsiteImages(initialState);
-    };
-
-    loadImages();
-  }, [websites]);
-
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, siteId: string) => {
-    if (!adminMode) return;
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploading(siteId);
-    try {
-      const folderPath = `${ADMIN_USER_ID}/${GALLERY_PREFIX}/${siteId}/`;
-
-      const { data: existing } = await supabase
-        .from('images')
-        .select('path')
-        .eq('user_id', ADMIN_USER_ID)
-        .like('path', `${folderPath}%`);
-
-      if (existing?.length) {
-        const paths = existing.map(img => img.path);
-        await Promise.all([
-          supabase.storage.from('user_images').remove(paths),
-          supabase.from('images').delete().in('path', paths)
-        ]);
-      }
-
-      const filePath = `${folderPath}${Date.now()}_${file.name}`;
-      const { error: uploadErr } = await supabase.storage
-        .from('user_images')
-        .upload(filePath, file, { upsert: true });
-      if (uploadErr) throw uploadErr;
-
-      const { error: dbErr } = await supabase
-        .from('images')
-        .insert({ user_id: ADMIN_USER_ID, path: filePath });
-      if (dbErr) throw dbErr;
-
-      const publicUrl = supabase.storage.from('user_images').getPublicUrl(filePath).data.publicUrl;
-      setWebsiteImages(prev => ({ ...prev, [siteId]: publicUrl }));
-    } catch (err) {
-      console.error('Upload failed:', err);
-      alert('Upload failed. Please try again.');
-    } finally {
-      setUploading(null);
-      e.target.value = '';
-    }
-  };
-
-  const copyPrompt = (prompt: string, siteId: string) => {
-    navigator.clipboard.writeText(prompt).then(() => {
-      setCopiedId(siteId);
-      setTimeout(() => setCopiedId(null), 2000);
-    });
-  };
-
-  // Group by category
-  const groupedWebsites: Record<string, Website[]> = {};
-  websites.forEach(site => {
-    if (!groupedWebsites[site.category]) groupedWebsites[site.category] = [];
-    groupedWebsites[site.category].push(site);
-  });
-
-  // Define preferred category order
-  const categoryOrder = [
-    'E-commerce',
-    'Local Business',
-    'Professional Services',
-    'Creative Portfolio',
-    'Content & Community',
-    'Restaurant & Hospitality',
-    'Startup / SaaS / Tech'
-  ];
-
-  // Sort categories: known ones first, then alphabetical
-  const sortedCategories = Object.keys(groupedWebsites).sort((a, b) => {
-    const aIndex = categoryOrder.indexOf(a);
-    const bIndex = categoryOrder.indexOf(b);
-    if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-    if (aIndex !== -1) return -1;
-    if (bIndex !== -1) return 1;
-    return a.localeCompare(b);
-  });
-
-  if (loading && websites.length === 0) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-500">Loading showcase...</div>
-      </div>
-    );
-  }
-
+export default function Home() {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <PageWithChrome>
       {/* Hero */}
-      <div className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight">
-            Real Websites. Real Businesses.
+      <div className="py-16 md:py-24 bg-gradient-to-br from-gray-50 to-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 tracking-tight">
+            Websites that <span className="text-indigo-600">actually convert</span>
           </h1>
-          <p className="mt-2 text-gray-600 max-w-2xl">
-            A curated showcase of live sites built for independent makers, artisans, and service professionals across America.
+          <p className="mt-6 text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
+            Fast, affordable, and built for real Western small businesses—no templates, no fluff. Just results.
           </p>
+          <div className="mt-10">
+            <Link
+              href="/vegan-bakery"
+              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all duration-200"
+            >
+              See a Live Demo
+              <ChevronRightIcon className="ml-2 h-5 w-5" aria-hidden="true" />
+            </Link>
+          </div>
         </div>
       </div>
 
-      {/* Sticky Category Navigation */}
-      {websites.length > 0 && (
-        <nav className="sticky top-0 z-20 bg-white py-2.5 border-b border-gray-200 shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 flex overflow-x-auto hide-scrollbar">
-            <div className="flex space-x-3">
-              {sortedCategories.map((category) => {
-                const anchorId = category
-                  .toLowerCase()
-                  .replace(/\s+/g, '-')
-                  .replace(/[&/]/g, '');
-                return (
-                  <a
-                    key={category}
-                    href={`#${anchorId}`}
-                    className="flex-shrink-0 text-sm font-medium text-gray-700 hover:text-blue-600 whitespace-nowrap px-3 py-1.5 rounded-full hover:bg-blue-50 transition-colors"
-                  >
-                    {category}
-                  </a>
-                );
-              })}
+      {/* Value Proposition */}
+      <div className="py-12 bg-white border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-indigo-100 text-indigo-600 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Built in Days, Not Months</h3>
+              <p className="mt-2 text-gray-600">Launch a professional site in under a week—without sacrificing quality or speed.</p>
+            </div>
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-100 text-green-600 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">No Template Feel</h3>
+              <p className="mt-2 text-gray-600">Every site is custom-structured for your industry—contractors, coaches, bakers, and more.</p>
+            </div>
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 text-amber-600 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Affordable for Small Biz</h3>
+              <p className="mt-2 text-gray-600">High-impact design without enterprise pricing—because your budget matters.</p>
             </div>
           </div>
-        </nav>
-      )}
-
-      {/* Gallery */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        {websites.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            No websites found. Create a folder under{' '}
-            <code className="bg-gray-100 px-1 rounded">app/websites/</code> to get started.
-          </div>
-        ) : (
-          <>
-            {sortedCategories.map((category) => {
-              const anchorId = category
-                .toLowerCase()
-                .replace(/\s+/g, '-')
-                .replace(/[&/]/g, '');
-              return (
-                <section
-                  key={category}
-                  id={anchorId}
-                  className="mb-16 scroll-mt-24" // account for sticky nav height
-                >
-                  <h2 className="text-2xl font-bold text-gray-800 mb-6 pb-2 border-b border-gray-200">
-                    {category}
-                  </h2>
-                  <div className="grid grid-cols-1 gap-8">
-                    {groupedWebsites[category].map((site) => {
-                      const imageUrl = websiteImages[site.id] || null;
-                      return (
-                        <div key={site.id} className="group relative">
-                          <Link href={`/websites/${site.id}`} className="block">
-                            <div className="aspect-[16/9] sm:aspect-[21/9] overflow-hidden rounded-xl bg-gray-100 shadow-sm transition-all duration-300 group-hover:shadow-md">
-                              {imageUrl ? (
-                                <img
-                                  src={imageUrl}
-                                  alt={site.title}
-                                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                  loading="lazy"
-                                  width={1200}
-                                  height={675}
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <div className="text-gray-400 text-lg font-medium">
-                                    Preview image pending
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="mt-4">
-                              <h3 className="text-xl font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
-                                {site.title}
-                              </h3>
-                              <p className="mt-1 text-gray-600 text-sm">{site.prompt}</p>
-                            </div>
-                          </Link>
-
-                          {adminMode && (
-                            <div className="mt-3 flex flex-wrap items-center gap-2">
-                              {!imageUrl && (
-                                <button
-                                  onClick={() => copyPrompt(site.prompt, site.id)}
-                                  className="text-xs bg-gray-800 text-white px-2 py-1 rounded hover:bg-gray-700"
-                                  type="button"
-                                >
-                                  {copiedId === site.id ? 'Copied!' : 'Copy Description'}
-                                </button>
-                              )}
-                              <label className="text-xs bg-blue-600 text-white px-2 py-1 rounded cursor-pointer">
-                                {uploading === site.id ? 'Uploading…' : 'Upload Preview'}
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={(e) => handleUpload(e, site.id)}
-                                  className="hidden"
-                                />
-                              </label>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              );
-            })}
-          </>
-        )}
+        </div>
       </div>
 
-      {/* Admin Badge */}
-      {adminMode && (
-        <div className="fixed bottom-4 right-4 bg-blue-600 text-white text-xs px-3 py-2 rounded shadow-lg z-10">
-          👤 Admin Mode: Upload preview images for each site
+      {/* Demo Gallery */}
+      <div className="py-16 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900">Real Sites. Real Businesses.</h2>
+            <p className="mt-4 text-gray-600 max-w-2xl mx-auto">
+              Each demo is a fully functional, mobile-optimized website built for a specific niche.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {DEMOS.map((demo) => (
+              <Link
+                key={demo.id}
+                href={demo.slug}
+                className="group block bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-200 overflow-hidden"
+              >
+                <div className="p-6">
+                  <span className="inline-block px-2.5 py-1 text-xs font-semibold text-indigo-600 bg-indigo-50 rounded-full mb-3">
+                    {demo.category}
+                  </span>
+                  <h3 className="text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                    {demo.title}
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-500">{demo.location}</p>
+                  <p className="mt-3 text-gray-600 text-sm">{demo.description}</p>
+                  <div className="mt-4 inline-flex items-center text-sm font-medium text-indigo-600 group-hover:underline">
+                    {demo.cta}
+                    <ChevronRightIcon className="ml-1 h-4 w-4" />
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+
+          <div className="text-center mt-12">
+            <p className="text-gray-600">
+              Want a site like this for your business?
+              <Link href="mailto:dave@whynowebsite.com" className="ml-1 font-medium text-indigo-600 hover:underline">
+                Let’s talk.
+              </Link>
+            </p>
+          </div>
         </div>
-      )}
+      </div>
+
+      {/* CTA Footer */}
+      <div className="py-12 bg-gray-900">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-2xl font-bold text-white">Stop settling for Wix clones.</h2>
+          <p className="mt-4 text-gray-300 max-w-2xl mx-auto">
+            Get a website that reflects your expertise, speaks to your clients, and works from day one.
+          </p>
+          <div className="mt-8">
+            <Link
+              href="/vegan-bakery"
+              className="inline-flex items-center px-5 py-2.5 border border-transparent text-base font-semibold rounded-lg bg-white text-gray-900 hover:bg-gray-100 transition-colors"
+            >
+              Experience a Live Demo
+            </Link>
+          </div>
+        </div>
+      </div>
+    </PageWithChrome>
+  );
+}
+
+// Layout wrapper that applies consistent chrome (header, maybe footer later)
+function PageWithChrome({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen flex flex-col bg-white">
+      <Header />
+      <main className="flex-grow">{children}</main>
+      {/* Optional: <Footer /> later */}
     </div>
   );
 }

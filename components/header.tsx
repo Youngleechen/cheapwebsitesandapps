@@ -1,50 +1,43 @@
 // components/Header.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase-client';
+import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
+
 export function Header() {
   const [user, setUser] = useState<any>(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const loginPromptTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
+      setIsAdmin(user?.id === ADMIN_USER_ID);
     };
     fetchUser();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        setShowLoginPrompt(false);
-        if (loginPromptTimeoutRef.current) {
-          clearTimeout(loginPromptTimeoutRef.current);
-        }
-      }
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      setIsAdmin(currentUser?.id === ADMIN_USER_ID);
     });
-
-    loginPromptTimeoutRef.current = setTimeout(() => {
-      if (!user) {
-        setShowLoginPrompt(true);
-      }
-    }, 5000);
 
     return () => {
       subscription.unsubscribe();
-      if (loginPromptTimeoutRef.current) {
-        clearTimeout(loginPromptTimeoutRef.current);
-      }
     };
-  }, [user]);
+  }, []);
 
   const handleAuth = () => {
     if (user) {
@@ -56,169 +49,55 @@ export function Header() {
     }
   };
 
-  const dismissPrompt = () => {
-    setShowLoginPrompt(false);
-    if (loginPromptTimeoutRef.current) {
-      clearTimeout(loginPromptTimeoutRef.current);
-    }
-  };
-
-  // Updated nav for whynowebsite.com
-  const navItems = [
-    { name: 'Showcase', href: '/websites' },
-    { name: 'Build Yours', href: '/builder' },
-    { name: 'Inspiration', href: '/inspiration' },
-    { name: 'Blog', href: '/blog' },
-    { name: 'About', href: '/about' },
-  ];
+  const isHomepage = pathname === '/';
 
   return (
-    <>
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex-shrink-0">
+    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100 shadow-sm">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16">
+          {/* Logo / Back Link */}
+          <div className="flex items-center">
+            {isHomepage ? (
               <Link
                 href="/"
                 className="text-xl font-bold text-gray-900 hover:text-indigo-600 transition-colors"
-                aria-label="WhyNowWebsite Home"
               >
-                <span className="text-indigo-600">Why</span>
-                <span className="font-mono">Now</span>
-                <span className="text-gray-500">.website</span>
+                WhyNotWebsite.com
               </Link>
-            </div>
-
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-1">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    pathname === item.href
-                      ? 'bg-indigo-50 text-indigo-700'
-                      : 'text-gray-600 hover:text-indigo-600 hover:bg-gray-50'
-                  }`}
+            ) : (
+              <Link
+                href="/"
+                className="inline-flex items-center text-gray-900 hover:text-indigo-600 transition-colors group text-sm font-medium"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4 mr-1.5 text-indigo-500 group-hover:-translate-x-0.5 transition-transform"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
                 >
-                  {item.name}
-                </Link>
-              ))}
-              <button
-                onClick={handleAuth}
-                className={`ml-3 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                  user
-                    ? 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                    : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow hover:shadow-md'
-                }`}
-              >
-                {user ? 'Account' : 'Get Started'}
-              </button>
-            </nav>
-
-            {/* Mobile Menu Button */}
-            <div className="md:hidden flex items-center">
-              <button
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="p-2 rounded-md text-gray-700 hover:text-indigo-600 hover:bg-gray-100 focus:outline-none"
-                aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
-              >
-                {isMenuOpen ? (
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                ) : (
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Mobile Navigation */}
-          {isMenuOpen && (
-            <div className="md:hidden py-4 border-t border-gray-100">
-              <div className="flex flex-col space-y-2">
-                {navItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`px-4 py-2.5 rounded-lg font-medium ${
-                      pathname === item.href
-                        ? 'bg-indigo-50 text-indigo-700'
-                        : 'text-gray-700 hover:bg-gray-50 hover:text-indigo-600'
-                    }`}
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    {item.name}
-                  </Link>
-                ))}
-                <button
-                  onClick={() => {
-                    handleAuth();
-                    setIsMenuOpen(false);
-                  }}
-                  className={`mt-3 px-4 py-2.5 rounded-lg font-semibold text-center ${
-                    user
-                      ? 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                      : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                  }`}
-                >
-                  {user ? 'My Account' : 'Get Started'}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </header>
-
-      {/* Login Prompt – Brand-aligned */}
-      {showLoginPrompt && !user && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center px-4 pb-4 sm:p-6">
-          <div
-            className="fixed inset-0 bg-black bg-opacity-40 transition-opacity"
-            onClick={dismissPrompt}
-            aria-hidden="true"
-          />
-          <div className="relative bg-white rounded-xl shadow-xl p-6 max-w-md w-full transform transition-all">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Build your standout website</h3>
-                <p className="mt-2 text-sm text-gray-600">
-                  Log in to save your custom designs, manage projects, and publish with confidence.
-                </p>
-              </div>
-              <button
-                onClick={dismissPrompt}
-                className="text-gray-400 hover:text-gray-500"
-                aria-label="Close prompt"
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
-              </button>
-            </div>
-            <div className="mt-5 flex justify-end space-x-3">
-              <button
-                onClick={dismissPrompt}
-                className="px-3.5 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100"
-              >
-                Not now
-              </button>
-              <button
-                onClick={() => {
-                  dismissPrompt();
-                  handleAuth();
-                }}
-                className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-sm"
-              >
-                Start Building
-              </button>
-            </div>
+                All Demos
+              </Link>
+            )}
           </div>
+
+          {/* Admin Auth Control (only visible to admin or when needed) */}
+          {isAdmin || !user ? (
+            <button
+              onClick={handleAuth}
+              className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                user
+                  ? 'text-red-600 hover:bg-red-50'
+                  : 'text-gray-600 hover:text-indigo-600 hover:bg-gray-100'
+              }`}
+            >
+              {user ? 'Logout' : 'Login'}
+            </button>
+          ) : null}
         </div>
-      )}
-    </>
+      </div>
+    </header>
   );
 }
