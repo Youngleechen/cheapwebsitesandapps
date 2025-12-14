@@ -83,7 +83,7 @@ export function Header() {
             )}
           </div>
 
-          {/* Admin Auth Control (only visible to admin or when needed) */}
+          {/* Admin Auth Control (only visible to admin or when neededs) */}
           {isAdmin || !user ? (
             <button
               onClick={handleAuth}
