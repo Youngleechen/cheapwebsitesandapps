@@ -1,4 +1,3 @@
-// components/Header.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,11 +5,6 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
 
@@ -21,11 +15,24 @@ export function Header() {
   const pathname = usePathname();
 
   useEffect(() => {
+    // Guard to ensure env vars exist (helps with debugging)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Missing Supabase environment variables');
+      return;
+    }
+
+    // Create Supabase client only in the browser
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
       setIsAdmin(user?.id === ADMIN_USER_ID);
     };
+
     fetchUser();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -40,6 +47,12 @@ export function Header() {
   }, []);
 
   const handleAuth = () => {
+    // Re-create client only when needed (safe since we're in browser)
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
     if (user) {
       supabase.auth.signOut().then(() => {
         router.refresh();
@@ -83,7 +96,7 @@ export function Header() {
             )}
           </div>
 
-          {/* Admin Auth Control (only visible to admin or when neededs) */}
+          {/* Admin Auth Control */}
           {isAdmin || !user ? (
             <button
               onClick={handleAuth}
