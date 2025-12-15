@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
+import { ArrowRight, Upload, Shield, Rocket, Target, Zap, TrendingUp, Sparkles, CheckCircle, MessageCircle, Mail } from 'lucide-react';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -30,6 +31,9 @@ export default function HomePage() {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [hoveredSite, setHoveredSite] = useState<string | null>(null);
+  const { scrollY } = useScroll();
+  const backgroundOpacity = useTransform(scrollY, [0, 100], [1, 0.95]);
+  const heroScale = useTransform(scrollY, [0, 200], [1, 0.98]);
 
   // Fetch websites from your existing API
   useEffect(() => {
@@ -38,7 +42,7 @@ export default function HomePage() {
         const res = await fetch('/api/websites');
         if (!res.ok) throw new Error('Failed to fetch websites');
         const data: WebsiteItem[] = await res.json();
-        setWebsites(data);
+setWebsites(data);
       } catch (err) {
         console.error('Failed to load websites:', err);
         setWebsites([]);
@@ -160,15 +164,14 @@ export default function HomePage() {
   // Select 9 high-impact sites (shuffle + slice)
   const featuredSites = useMemo(() => {
     if (websites.length === 0) return [];
-    // Optional: prioritize certain categories or IDs
     const shuffled = [...websites].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 9);
   }, [websites]);
 
   // Professional loading skeleton
   const SkeletonCard = () => (
-    <div className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm animate-pulse">
-      <div className="h-64 bg-gray-100" />
+    <div className="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm animate-pulse">
+      <div className="h-64 bg-gradient-to-br from-gray-50 to-gray-100" />
       <div className="p-6">
         <div className="h-4 bg-gray-200 rounded w-1/3 mb-2" />
         <div className="h-6 bg-gray-200 rounded w-2/3 mb-3" />
@@ -180,13 +183,13 @@ export default function HomePage() {
 
   if (loading && websites.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="text-center mb-12">
             <div className="h-12 w-48 bg-gray-200 rounded mx-auto mb-4 animate-pulse" />
             <div className="h-6 w-96 bg-gray-200 rounded mx-auto animate-pulse" />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(9)].map((_, i) => (
               <SkeletonCard key={i} />
             ))}
@@ -197,101 +200,186 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
-      {/* Hero Banner - More sophisticated */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-indigo-900/90 to-purple-800/90 opacity-95" />
-        <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-10" />
+    <div className="min-h-screen bg-gray-50">
+      {/* Hero Section - Ultra Modern */}
+      <motion.div 
+        style={{ opacity: backgroundOpacity, scale: heroScale }}
+        className="relative overflow-hidden bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800"
+      >
+        {/* Animated Background Elements */}
+        <div className="absolute inset-0 opacity-20">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.1),transparent_70%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.05)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.05)_50%,rgba(255,255,255,0.05)_75%,transparent_75%,transparent)] bg-[size:60px_60px]" />
+        </div>
         
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-32 md:py-40">
           <motion.div 
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-center max-w-3xl mx-auto"
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="text-center max-w-4xl mx-auto"
           >
-            <div className="inline-block px-4 py-1 bg-white/10 backdrop-blur-sm rounded-full mb-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2, duration: 0.5 }}
+              className="inline-flex items-center px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full mb-8 border border-white/20"
+            >
+              <Sparkles className="h-4 w-4 text-yellow-300 mr-2" />
               <span className="text-indigo-200 font-medium text-sm">
-                Premium Web Solutions for Ambitious Businesses
+                Premium Web Solutions for Visionary Businesses
               </span>
-            </div>
+            </motion.div>
             
-            <h1 className="text-4xl md:text-6xl font-bold text-white tracking-tight mb-6">
-              Digital Excellence, <span className="text-yellow-300">Delivered</span>
-            </h1>
+            <motion.h1 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.6 }}
+              className="text-5xl md:text-7xl font-bold text-white tracking-tight mb-8 leading-tight"
+            >
+              Digital Excellence, <span className="text-yellow-300">Engineered</span>
+            </motion.h1>
             
-            <p className="text-xl text-indigo-100/90 mb-8">
-              We craft high-performance websites that convert visitors into loyal customers—combining strategic design with technical precision.
-            </p>
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.6 }}
+              className="text-xl md:text-2xl text-indigo-100/90 mb-12 max-w-3xl mx-auto leading-relaxed"
+            >
+              We craft high-performance websites that transform digital presence into measurable business growth—combining strategic insight with technical mastery.
+            </motion.p>
             
-            <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5, duration: 0.6 }}
+              className="flex flex-col sm:flex-row justify-center gap-4"
+            >
               <Link
                 href="/websites"
-                className="px-8 py-4 bg-white text-indigo-900 font-semibold rounded-xl hover:bg-indigo-50 transition-all duration-300 shadow-lg hover:shadow-xl"
+                className="group relative px-8 py-4 bg-gradient-to-r from-white to-indigo-100 text-indigo-900 font-semibold rounded-xl hover:shadow-xl transition-all duration-300 overflow-hidden"
               >
-                Explore Our Work
+                <span className="relative z-10 flex items-center justify-center">
+                  Explore Portfolio
+                  <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-white to-indigo-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </Link>
               <Link
-                href="mailto:seivadyoung@gmail.com?subject=I want my CheapWebsites site"
-                className="px-8 py-4 bg-transparent border-2 border-white text-white font-semibold rounded-xl hover:bg-white/10 transition-all duration-300"
+                href="/get-started"
+                className="group relative px-8 py-4 bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 font-bold rounded-xl hover:shadow-xl transition-all duration-300 overflow-hidden"
               >
-                Schedule Consultation
+                <span className="relative z-10 flex items-center justify-center">
+                  Let Us Create Your Website
+                  <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-yellow-300 to-yellow-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </Link>
-            </div>
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.7, duration: 0.5 }}
+              className="mt-6"
+            >
+              <Link
+                href="/contact"
+                className="inline-flex items-center text-white/80 hover:text-white font-medium text-sm transition-colors duration-300"
+              >
+                <Mail className="h-4 w-4 mr-2" />
+                <span>Just have a question? Contact us</span>
+              </Link>
+            </motion.div>
           </motion.div>
           
-          <div className="mt-16 hidden md:block">
-            <div className="grid grid-cols-3 gap-4">
+          {/* Floating Preview Grid */}
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7, duration: 0.8 }}
+            className="mt-20 hidden md:block"
+          >
+            <div className="grid grid-cols-3 gap-6">
               {featuredSites.slice(0, 3).map((site, index) => {
                 const imageUrl = previewImages[site.id];
                 return (
                   <motion.div
                     key={index}
-                    initial={{ opacity: 0, scale: 0.95 }}
+                    initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.2 * index }}
-                    className="bg-white/5 backdrop-blur-sm rounded-xl overflow-hidden border border-white/10"
+                    transition={{ delay: 0.8 + index * 0.1, duration: 0.5 }}
+                    whileHover={{ y: -8, scale: 1.02 }}
+                    className="bg-white/10 backdrop-blur-lg rounded-2xl overflow-hidden border border-white/20 shadow-xl hover:shadow-2xl transition-all duration-300"
                   >
-                    <div className="h-48 relative">
+                    <div className="h-56 relative">
                       {imageUrl ? (
                         <Image
                           src={imageUrl}
                           alt={`${site.title} preview`}
                           fill
-                          className="object-cover"
+                          className="object-cover transition-transform duration-500 hover:scale-110"
                           priority={index === 0}
                         />
                       ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-gray-800/50 to-gray-900/50 flex items-center justify-center">
-                          <span className="text-gray-400 text-sm">Preview loading...</span>
+                        <div className="w-full h-full bg-gradient-to-br from-gray-800/30 to-gray-900/40 flex items-center justify-center">
+                          <span className="text-gray-300 text-sm font-medium">Preview loading...</span>
                         </div>
                       )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+                        <span className="text-white font-medium text-sm">{site.title}</span>
+                      </div>
                     </div>
                   </motion.div>
                 );
               })}
             </div>
-          </div>
+          </motion.div>
         </div>
-      </div>
 
-      {/* Featured Grid - Professional layout */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        {/* Floating Particles */}
+        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-indigo-900 to-transparent pointer-events-none" />
+      </motion.div>
+
+      {/* Featured Portfolio Grid - Premium Design */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
         <motion.div 
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="text-center mb-16"
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.6 }}
+          className="text-center mb-20"
         >
-          <span className="text-indigo-600 font-semibold text-sm tracking-wide uppercase mb-4 block">
+          <motion.span 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.4 }}
+            className="inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 rounded-full font-medium text-sm mb-4"
+          >
+            <Shield className="h-4 w-4 mr-2" />
             Our Portfolio
-          </span>
-          <h2 className="text-4xl font-bold text-gray-900 mb-6">
+          </motion.span>
+          
+          <motion.h2 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1, duration: 0.5 }}
+            className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-indigo-800 mb-6"
+          >
             Transforming Digital Experiences
-          </h2>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Each website we create is a strategic asset designed to achieve specific business objectives—backed by data-driven decisions and meticulous execution. [[12]]
-          </p>
+          </motion.h2>
+          
+          <motion.p 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+            className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed"
+          >
+            Each website we create is a strategic asset engineered to achieve specific business objectives—backed by data-driven decisions and meticulous execution.
+          </motion.p>
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -304,13 +392,13 @@ export default function HomePage() {
               return (
                 <motion.div
                   key={site.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 20 }}
-                  transition={{ duration: 0.3 }}
+                  initial={{ opacity: 0, y: 40 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-100px" }}
+                  transition={{ duration: 0.5 }}
                   onHoverStart={() => setHoveredSite(site.id)}
                   onHoverEnd={() => setHoveredSite(null)}
-                  className={`group relative bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 ${
+                  className={`group relative bg-white rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 ${
                     adminMode ? 'pb-16' : ''
                   }`}
                 >
@@ -321,7 +409,7 @@ export default function HomePage() {
                         alt={`${site.title} website preview`}
                         fill
                         className={`object-cover transition-transform duration-500 ${
-                          isHovered ? 'scale-105' : ''
+                          isHovered ? 'scale-110' : 'scale-100'
                         }`}
                         priority={false}
                         sizes="(max-width: 768px) 100vw, 33vw"
@@ -334,7 +422,9 @@ export default function HomePage() {
                     ) : (
                       <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
                         <div className="text-center px-4">
-                          <div className="w-16 h-16 bg-gray-200 rounded-xl mx-auto mb-4 animate-pulse" />
+                          <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center mx-auto mb-4 animate-pulse">
+                            <span className="text-indigo-600 font-bold text-lg">W</span>
+                          </div>
                           <span className="text-gray-500 text-sm font-medium">
                             {loading ? 'Uploading preview...' : 'Preview unavailable'}
                           </span>
@@ -342,56 +432,96 @@ export default function HomePage() {
                       </div>
                     )}
                     
-                    {/* Category badge */}
-                    <div className="absolute top-4 left-4 bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">
+                    {/* Category badge with gradient */}
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.2 }}
+                      className="absolute top-4 left-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg z-10 border border-white/20"
+                    >
                       {site.categoryName}
+                    </motion.div>
+                    
+                    {/* Hover overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        whileHover={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="text-white"
+                      >
+                        <h3 className="text-2xl font-bold mb-2">{site.title}</h3>
+                        <p className="text-gray-200 line-clamp-2 mb-4">{site.prompt}</p>
+                        <div className="flex items-center text-sm font-medium text-indigo-300">
+                          View Case Study
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </div>
+                      </motion.div>
                     </div>
                   </div>
 
                   <div className="p-6 flex flex-col flex-1">
-                    <h3 className="text-2xl font-bold text-gray-900 mb-2 group-hover:text-indigo-600 transition-colors duration-300">
+                    <motion.h3 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 }}
+                      className="text-2xl font-bold text-gray-900 mb-2 group-hover:text-indigo-700 transition-colors duration-300"
+                    >
                       {site.title}
-                    </h3>
-                    <p className="text-gray-600 mb-4 flex-1 line-clamp-2 text-base">
+                    </motion.h3>
+                    <motion.p 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
+                      className="text-gray-600 mb-4 flex-1 line-clamp-2 text-base leading-relaxed"
+                    >
                       {site.prompt}
-                    </p>
+                    </motion.p>
                     
-                    <div className="mt-auto pt-4 border-t border-gray-100">
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                      className="mt-auto pt-4 border-t border-gray-100"
+                    >
                       <Link
                         href={`/websites/${site.id}`}
-                        className="inline-flex items-center text-indigo-600 font-medium hover:text-indigo-800 transition-colors duration-300 group/link"
+                        className="inline-flex items-center text-indigo-700 font-medium hover:text-indigo-900 transition-colors duration-300 group/link relative pb-1"
                       >
-                        <span>View Case Study</span>
-                        <svg 
-                          className="ml-2 h-4 w-4 transform group-hover/link:translate-x-1 transition-transform duration-300" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                        </svg>
+                        <span className="relative z-10">View Case Study</span>
+                        <ArrowRight className="ml-2 h-4 w-4 transform group-hover/link:translate-x-1 transition-transform duration-300" />
+                        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-400 to-purple-500 transform scale-x-0 group-hover/link:scale-x-100 transition-transform duration-300 origin-left" />
                       </Link>
-                    </div>
+                    </motion.div>
                   </div>
 
                   {adminMode && (
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-purple-50 to-transparent p-4 border-t border-purple-100">
-                      <label className="block text-center">
-                        <span className="text-purple-700 font-medium text-sm cursor-pointer hover:text-purple-900 transition-colors flex items-center justify-center gap-2">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.4 }}
+                      className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-indigo-50 to-transparent p-4 border-t border-indigo-100"
+                    >
+                      <label className="block text-center cursor-pointer">
+                        <span className="text-indigo-600 font-medium text-sm hover:text-indigo-800 transition-colors flex items-center justify-center gap-2 group">
                           {loading ? (
                             <>
-                              <svg className="animate-spin h-4 w-4 text-purple-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 4.418 3.582 8 8 8v-4a4 4 0 00-4-4z"></path>
-                              </svg>
-                              Uploading...
+                              <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                className="h-4 w-4 text-indigo-500"
+                              >
+                                <svg className="h-full w-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25" />
+                                  <path stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 4.418 3.582 8 8 8v-4a4 4 0 00-4-4z" />
+                                </svg>
+                              </motion.div>
+                              <span>Uploading...</span>
                             </>
                           ) : (
                             <>
-                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                              </svg>
-                              Update Preview
+                              <Upload className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                              <span>Update Preview</span>
                             </>
                           )}
                         </span>
@@ -402,7 +532,7 @@ export default function HomePage() {
                           className="hidden"
                         />
                       </label>
-                    </div>
+                    </motion.div>
                   )}
                 </motion.div>
               );
@@ -410,98 +540,246 @@ export default function HomePage() {
           </AnimatePresence>
         </div>
 
-        <div className="text-center mt-12">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.6, duration: 0.5 }}
+          className="text-center mt-16"
+        >
           <Link
             href="/websites"
-            className="inline-flex items-center text-indigo-600 font-semibold hover:text-indigo-800 transition-colors duration-300"
+            className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-700 text-white font-bold rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 transform group"
           >
-            <span>View all {websites.length} case studies</span>
-            <svg className="ml-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-            </svg>
+            <span>Explore All {websites.length} Projects</span>
+            <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform duration-300" />
           </Link>
-        </div>
+        </motion.div>
       </div>
 
-      {/* Value proposition section */}
-      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-          >
-            <span className="text-indigo-600 font-semibold text-sm tracking-wide uppercase mb-4 block">
+      {/* Value Proposition Section - Premium Design */}
+      <div className="py-24 bg-gradient-to-b from-gray-50 to-gray-100 overflow-hidden relative">
+        <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-5" />
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          <div className="text-center mb-20">
+            <motion.span 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4 }}
+              className="inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-purple-50 to-indigo-50 text-purple-700 rounded-full font-medium text-sm mb-4"
+            >
+              <Zap className="h-4 w-4 mr-2" />
               Our Process
-            </span>
-            <h2 className="text-4xl font-bold text-gray-900 mb-6">
-              Precision-Crafted Digital Solutions
-            </h2>
-            <p className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto">
-              We blend strategic thinking with technical expertise to deliver websites that don't just look beautiful—they drive measurable business results.
-            </p>
+            </motion.span>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-              {[
-                {
-                  title: "Strategic Planning",
-                  desc: "Deep business analysis to align your digital presence with core objectives",
-                  icon: "🎯"
-                },
-                {
-                  title: "Expert Execution",
-                  desc: "Meticulous design and development with performance and conversion focus",
-                  icon: "⚡"
-                },
-                {
-                  title: "Ongoing Growth",
-                  desc: "Data-driven optimization and strategic guidance for continuous improvement",
-                  icon: "📈"
-                }
-              ].map((item, i) => (
+            <motion.h2 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1, duration: 0.5 }}
+              className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-purple-800 mb-6"
+            >
+              The WhyNoWebsite Methodology
+            </motion.h2>
+            
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2, duration: 0.5 }}
+              className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed"
+            >
+              We blend strategic thinking with technical excellence to deliver websites that drive measurable business results and sustainable growth.
+            </motion.p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
+            {[{
+              icon: Target,
+              title: "Strategic Discovery",
+              desc: "Deep business analysis to understand your unique challenges and align digital strategy with core objectives.",
+              color: "from-indigo-500 to-purple-600"
+            },
+            {
+              icon: Rocket,
+              title: "Precision Execution",
+              desc: "Meticulous design and development focusing on performance, user experience, and conversion optimization.",
+              color: "from-purple-500 to-pink-600"
+            },
+            {
+              icon: TrendingUp,
+              title: "Growth Partnership",
+              desc: "Ongoing optimization and strategic guidance to ensure your digital presence evolves with your business.",
+              color: "from-pink-500 to-rose-600"
+            }].map((item, i) => {
+              const Icon = item.icon;
+              return (
                 <motion.div
                   key={i}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 + i * 0.1 }}
-                  className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300"
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.3 + i * 0.1, duration: 0.5 }}
+                  whileHover={{ y: -10 }}
+                  className="bg-white p-8 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100"
                 >
-                  <div className="text-4xl mb-4">{item.icon}</div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">{item.title}</h3>
-                  <p className="text-gray-600">{item.desc}</p>
+                  <div className={`p-4 rounded-xl bg-gradient-to-br ${item.color} inline-block mb-6`}>
+                    <Icon className="h-8 w-8 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-3">{item.title}</h3>
+                  <p className="text-gray-600 leading-relaxed">{item.desc}</p>
                 </motion.div>
-              ))}
-            </div>
-            
-            <Link
-              href="mailto:seivadyoung@gmail.com?subject=I want my CheapWebsites site"
-              className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 transform"
+              );
+            })}
+          </div>
+          
+          {/* Client Benefits Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-20 max-w-4xl mx-auto">
+            {[{
+              title: "95%+ Client Satisfaction",
+              desc: "Our commitment to quality and communication ensures exceptional results."
+            },
+            {
+              title: "48-Hour Response Guarantee",
+              desc: "We prioritize your project and maintain clear communication throughout."
+            },
+            {
+              title: "Performance-First Approach",
+              desc: "Every site is optimized for speed, SEO, and conversion from day one."
+            },
+            {
+              title: "Strategic Growth Focus",
+              desc: "We build websites that scale with your business and drive real ROI."
+            }].map((benefit, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: i % 2 === 0 ? -20 : 20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.6 + i * 0.1, duration: 0.4 }}
+                className={`flex items-start p-6 rounded-xl ${
+                  i % 2 === 0 
+                    ? 'bg-gradient-to-br from-indigo-50 to-purple-50' 
+                    : 'bg-gradient-to-br from-purple-50 to-pink-50'
+                }`}
+              >
+                <div className="flex-shrink-0 mr-4 mt-1">
+                  <CheckCircle className="h-6 w-6 text-indigo-600" />
+                </div>
+                <div>
+                  <h4 className="text-xl font-bold text-gray-900 mb-1">{benefit.title}</h4>
+                  <p className="text-gray-600">{benefit.desc}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+          
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.8, duration: 0.6 }}
+            className="text-center max-w-3xl mx-auto"
+          >
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
             >
-              <span>Begin Your Digital Transformation</span>
-              <svg className="ml-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
+              <Link
+                href="/get-started"
+                className="inline-flex items-center justify-center px-10 py-5 bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 font-bold text-lg rounded-xl shadow-2xl hover:shadow-3xl transition-all duration-300 group"
+              >
+                <span>Let Us Create Your Website</span>
+                <ArrowRight className="ml-3 h-6 w-6 group-hover:translate-x-1 transition-transform duration-300" />
+              </Link>
+            </motion.div>
+            <p className="mt-6 text-gray-600 text-lg">
+              Ready to transform your digital presence? Get started today and we'll create a website that drives real business results.
+            </p>
+          </motion.div>
+          
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.9, duration: 0.5 }}
+            className="text-center mt-8"
+          >
+            <Link
+              href="/contact"
+              className="inline-flex items-center text-indigo-600 hover:text-indigo-800 font-medium text-base transition-colors duration-300"
+            >
+              <MessageCircle className="h-5 w-5 mr-2" />
+              <span>Have questions first? Get in touch</span>
             </Link>
           </motion.div>
         </div>
       </div>
 
-      {/* Admin mode indicator - more subtle */}
+      {/* CTA Section - Focused on Website Creation */}
+      <div className="py-20 bg-gradient-to-br from-indigo-900 to-purple-900">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <span className="text-indigo-200 font-medium text-sm tracking-wide uppercase mb-4 block">
+              Ready to transform your digital presence?
+            </span>
+            <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
+              Your <span className="text-yellow-300">Website Awaits</span>
+            </h2>
+            <p className="text-xl text-indigo-100/90 mb-10 max-w-2xl mx-auto leading-relaxed">
+              Fill out our simple form and we'll create a custom website proposal tailored to your business goals. We respond within 24 hours to get your project started.
+            </p>
+            
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="flex flex-col sm:flex-row justify-center gap-4 items-center"
+            >
+              <Link
+                href="/get-started"
+                className="inline-flex items-center px-10 py-5 bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 font-bold text-lg rounded-xl shadow-2xl hover:shadow-3xl transition-all duration-300 group"
+              >
+                <span>Get Started Now</span>
+                <ArrowRight className="ml-3 h-6 w-6 group-hover:translate-x-1 transition-transform duration-300" />
+              </Link>
+              
+              <Link
+                href="/contact"
+                className="inline-flex items-center px-8 py-4 bg-transparent border-2 border-white/80 text-white font-semibold rounded-xl hover:bg-white/10 backdrop-blur-sm transition-all duration-300"
+              >
+                <Mail className="h-5 w-5 mr-2" />
+                <span>Contact Us</span>
+              </Link>
+            </motion.div>
+            
+            <p className="mt-8 text-indigo-200/80 text-base">
+              Not ready to start a project? We're happy to answer your questions and provide guidance.
+            </p>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Admin mode indicator - Elegant */}
       <AnimatePresence>
         {adminMode && (
           <motion.div
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-8 right-8 bg-indigo-600 text-white px-6 py-3 rounded-2xl shadow-xl text-sm font-medium z-50 flex items-center gap-2 backdrop-blur-sm border border-indigo-300/20"
+            className="fixed bottom-8 right-8 bg-gradient-to-r from-indigo-600 to-purple-700 text-white px-6 py-3 rounded-2xl shadow-2xl text-sm font-medium z-50 flex items-center gap-2 backdrop-blur-sm"
           >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-            Admin Mode Active
+            <Shield className="h-4 w-4" />
+            <span>Admin Mode Active</span>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
   );
-}  
+}
