@@ -1,7 +1,7 @@
 // app/websites/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 
@@ -21,6 +21,25 @@ type WebsiteItem = {
   categoryName: string;
 };
 
+// Optional: shuffle array using a consistent seed (based on time block)
+// This ensures shuffle doesn’t change every millisecond
+function seededShuffle<T>(array: T[], seedMinutes = 5): T[] {
+  const now = new Date();
+  const block = Math.floor(now.getTime() / (1000 * 60 * seedMinutes));
+  let seed = block;
+
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i--) {
+    // Simple seeded pseudo-random
+    const j = Math.floor((Math.sin(seed++) * 10000 + 10000) % (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+// Alternatively, if you prefer NO shuffle at all, just return [...array]
+// and skip seededShuffle entirely.
+
 export default function WebsitesShowcase() {
   const [websites, setWebsites] = useState<WebsiteItem[]>([]);
   const [websiteImages, setWebsiteImages] = useState<{ [key: string]: string | null }>({});
@@ -29,9 +48,10 @@ export default function WebsitesShowcase() {
   const [uploading, setUploading] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null); // New state for filter
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [showMore, setShowMore] = useState(false); // For dropdown
 
-  // Fetch website list from API
+  // Fetch websites
   useEffect(() => {
     const fetchWebsites = async () => {
       try {
@@ -159,33 +179,41 @@ export default function WebsitesShowcase() {
     });
   };
 
-  // Group websites by category and shuffle within each group
-  const groupedWebsites: Record<string, WebsiteItem[]> = {};
-  websites.forEach(site => {
-    if (!groupedWebsites[site.categoryKey]) {
-      groupedWebsites[site.categoryKey] = [];
-    }
-    groupedWebsites[site.categoryKey].push(site);
-  });
+  // Group websites by category
+  const groupedWebsites = useMemo(() => {
+    const groups: Record<string, WebsiteItem[]> = {};
+    websites.forEach(site => {
+      if (!groups[site.categoryKey]) {
+        groups[site.categoryKey] = [];
+      }
+      groups[site.categoryKey].push(site);
+    });
 
-  // Shuffle sites within each category
-  Object.keys(groupedWebsites).forEach(categoryKey => {
-    const shuffled = [...groupedWebsites[categoryKey]].sort(() => Math.random() - 0.5);
-    groupedWebsites[categoryKey] = shuffled;
-  });
+    // Shuffle **once per group** using time-block seed (e.g., reshuffle every 5 min)
+    // If you want NO shuffle, replace with: groups[categoryKey] = [...groups[categoryKey]];
+    Object.keys(groups).forEach(key => {
+      groups[key] = seededShuffle(groups[key], 5); // reshuffle every 5 minutes
+    });
 
-  // Get unique categories for the nav bar
-  const categories = Object.keys(groupedWebsites).map(key => ({
-    key: key,
-    name: groupedWebsites[key][0]?.categoryName || key
-  }));
+    return groups;
+  }, [websites]); // Only re-group when websites change
 
-  // Filter websites based on selected category
+  // Extract categories with stable order (alphabetical by key or use another sort)
+  const allCategories = useMemo(() => {
+    return Object.keys(groupedWebsites).map(key => ({
+      key,
+      name: groupedWebsites[key][0]?.categoryName || key
+    })).sort((a, b) => a.name.localeCompare(b.name)); // optional: sort by name
+  }, [groupedWebsites]);
+
+  const VISIBLE_CATEGORY_COUNT = 5;
+  const visibleCategories = allCategories.slice(0, VISIBLE_CATEGORY_COUNT);
+  const hiddenCategories = allCategories.slice(VISIBLE_CATEGORY_COUNT);
+
   const displayedWebsites = selectedCategory
     ? groupedWebsites[selectedCategory] || []
-    : websites; // Show all if no category selected
+    : websites;
 
-  // Create a single array for display, maintaining category grouping
   const displayGroups = selectedCategory
     ? { [selectedCategory]: groupedWebsites[selectedCategory] || [] }
     : groupedWebsites;
@@ -207,18 +235,18 @@ export default function WebsitesShowcase() {
             Real Websites. Real Businesses.
           </h1>
           <p className="mt-2 text-gray-600 max-w-2xl">
-            A curated showcase of live sites built for independent makers, artisans, and service professionals across America.
+            A curated showcase of live sites built for independent makers, artisans, and service professionals across the world.
           </p>
         </div>
       </div>
 
-      {/* Category Navigation Bar */}
+      {/* Category Navigation Bar — NON-SCROLLABLE */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 overflow-x-auto">
-          <div className="flex space-x-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setSelectedCategory(null)}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`px-4 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${
                 selectedCategory === null
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-700 hover:bg-gray-100'
@@ -226,11 +254,12 @@ export default function WebsitesShowcase() {
             >
               All Categories
             </button>
-            {categories.map(({ key, name }) => (
+
+            {visibleCategories.map(({ key, name }) => (
               <button
                 key={key}
                 onClick={() => setSelectedCategory(key)}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${
                   selectedCategory === key
                     ? 'bg-blue-600 text-white'
                     : 'text-gray-700 hover:bg-gray-100'
@@ -239,6 +268,40 @@ export default function WebsitesShowcase() {
                 {name}
               </button>
             ))}
+
+            {hiddenCategories.length > 0 && (
+              <div className="relative inline-block text-left">
+                <button
+                  onClick={() => setShowMore(!showMore)}
+                  className="px-4 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100 flex items-center gap-1"
+                >
+                  More ▼
+                </button>
+
+                {showMore && (
+                  <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg border z-20">
+                    <div className="py-1">
+                      {hiddenCategories.map(({ key, name }) => (
+                        <button
+                          key={key}
+                          onClick={() => {
+                            setSelectedCategory(key);
+                            setShowMore(false);
+                          }}
+                          className={`block w-full text-left px-4 py-2 text-sm ${
+                            selectedCategory === key
+                              ? 'bg-blue-50 text-blue-700 font-medium'
+                              : 'text-gray-700 hover:bg-gray-100'
+                          }`}
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -325,4 +388,3 @@ export default function WebsitesShowcase() {
     </div>
   );
 }
-
