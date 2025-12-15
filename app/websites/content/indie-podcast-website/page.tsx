@@ -327,7 +327,7 @@ export default function Page() {
           </h1>
           
           <p className="text-xl text-indigo-200 mb-8">
-            Join host Marcus Chen as we dig through record crates, basement studios, and hidden venues to uncover the artists, collectors, and communities keeping analog culture alive in the digital age.
+            Join host Marcus Ken as we dig through record crates, basement studios, and hidden venues to uncover the artists, collectors, and communities keeping analog culture alive in the digital age.
           </p>
           
           <div className="flex flex-col sm:flex-row justify-center gap-4 mb-12">
@@ -570,7 +570,7 @@ export default function Page() {
               {artworks['brooklyn-analog']?.image_url && (
                 <Image
                   src={artworks['brooklyn-analog'].image_url || '/placeholder-podcast.jpg'}
-                  alt="Marcus Chen in Brooklyn recording studio"
+                  alt="Marcus Henry in Brooklyn recording studio"
                   fill
                   className="object-cover"
                   priority

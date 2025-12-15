@@ -669,7 +669,7 @@ export default function BlissfulBitesPage() {
                 From Home Kitchen to <span className="text-amber-600">Community Hub</span>
               </h2>
               <p className="text-lg text-gray-600 mb-6">
-                In 2018, founder Emma Chen started baking vegan treats in her Austin apartment kitchen to share with friends who had dietary restrictions. What began as a passion project quickly grew into something more when neighbors began knocking on her door, asking to buy her famous almond croissants.
+                In 2018, founder Emma Grace started baking vegan treats in her Austin apartment kitchen to share with friends who had dietary restrictions. What began as a passion project quickly grew into something more when neighbors began knocking on her door, asking to buy her famous almond croissants.
               </p>
               <p className="text-lg text-gray-600 mb-8">
                 Today, Blissful Bites is a beloved community staple in East Austin, where we craft over 50 different vegan pastries daily using traditional French techniques and locally-sourced Texas ingredients. Our mission remains simple: prove that compassionate baking can be both delicious and accessible.

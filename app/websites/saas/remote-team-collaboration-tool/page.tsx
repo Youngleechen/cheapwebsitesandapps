@@ -60,7 +60,7 @@ const GALLERY_ARTWORKS = [
   },
   { 
     id: 'team-member-2', 
-    title: 'Maya Chen - Frontend Developer',
+    title: 'Maya James - Frontend Developer',
     prompt: 'Professional portrait of an Asian woman in her late 20s, modern tech workspace background, wearing stylish glasses, friendly smile, natural lighting, crisp details'
   },
   { 
