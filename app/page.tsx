@@ -7,6 +7,17 @@ import { createClient } from '@supabase/supabase-js';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import { ArrowRight, Upload, Shield, Rocket, Target, Zap, TrendingUp, Sparkles, CheckCircle, MessageCircle, Mail } from 'lucide-react';
 
+// Add this at the top to detect older devices
+const isOldDevice = () => {
+  // Simple detection for older mobile devices
+  const ua = navigator.userAgent.toLowerCase();
+  const isOldAndroid = ua.includes('android') && !ua.includes('chrome');
+  const isOldIos = ua.includes('iphone') || ua.includes('ipad');
+  const isOldBrowser = !('CSS' in window) || !CSS.supports('backdrop-filter', 'blur(10px)');
+  
+  return isOldAndroid || isOldIos || isOldBrowser || window.innerWidth < 320;
+};
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -34,6 +45,14 @@ export default function HomePage() {
   const { scrollY } = useScroll();
   const backgroundOpacity = useTransform(scrollY, [0, 100], [1, 0.95]);
   const heroScale = useTransform(scrollY, [0, 200], [1, 0.98]);
+  
+  // Add state for device detection
+  const [isOldPhone, setIsOldPhone] = useState(false);
+
+  // Detect old devices on mount
+  useEffect(() => {
+    setIsOldPhone(isOldDevice());
+  }, []);
 
   // Fetch websites from your existing API
   useEffect(() => {
@@ -42,7 +61,7 @@ export default function HomePage() {
         const res = await fetch('/api/websites');
         if (!res.ok) throw new Error('Failed to fetch websites');
         const data: WebsiteItem[] = await res.json();
-setWebsites(data);
+        setWebsites(data);
       } catch (err) {
         console.error('Failed to load websites:', err);
         setWebsites([]);
@@ -168,28 +187,28 @@ setWebsites(data);
     return shuffled.slice(0, 9);
   }, [websites]);
 
-  // Professional loading skeleton
+  // Enhanced loading skeleton with better mobile support
   const SkeletonCard = () => (
-    <div className="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm animate-pulse">
-      <div className="h-64 bg-gradient-to-br from-gray-50 to-gray-100" />
-      <div className="p-6">
-        <div className="h-4 bg-gray-200 rounded w-1/3 mb-2" />
-        <div className="h-6 bg-gray-200 rounded w-2/3 mb-3" />
-        <div className="h-4 bg-gray-200 rounded w-full mb-4" />
-        <div className="h-4 bg-gray-200 rounded w-1/4" />
+    <div className="bg-gray-50 rounded-xl overflow-hidden border border-gray-200 shadow-sm animate-pulse">
+      <div className="h-48 bg-gradient-to-br from-gray-100 to-gray-200 md:h-64" />
+      <div className="p-4 md:p-6">
+        <div className="h-3 bg-gray-200 rounded w-1/3 mb-2" />
+        <div className="h-5 bg-gray-200 rounded w-2/3 mb-2" />
+        <div className="h-3 bg-gray-200 rounded w-full mb-3" />
+        <div className="h-3 bg-gray-200 rounded w-1/4" />
       </div>
     </div>
   );
 
   if (loading && websites.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="text-center mb-12">
-            <div className="h-12 w-48 bg-gray-200 rounded mx-auto mb-4 animate-pulse" />
-            <div className="h-6 w-96 bg-gray-200 rounded mx-auto animate-pulse" />
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-16">
+          <div className="text-center mb-8 md:mb-12">
+            <div className="h-8 w-32 bg-gray-200 rounded mx-auto mb-3 md:mb-4 animate-pulse" />
+            <div className="h-4 w-64 bg-gray-200 rounded mx-auto animate-pulse" />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {[...Array(9)].map((_, i) => (
               <SkeletonCard key={i} />
             ))}
@@ -201,18 +220,29 @@ setWebsites(data);
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Hero Section - Ultra Modern */}
+      {/* Hero Section - Ultra Modern with Old Phone Fallback */}
       <motion.div 
-        style={{ opacity: backgroundOpacity, scale: heroScale }}
-        className="relative overflow-hidden bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800"
+        style={{ 
+          opacity: backgroundOpacity, 
+          scale: isOldPhone ? 1 : heroScale 
+        }}
+        className={`relative overflow-hidden ${
+          isOldPhone 
+            ? 'bg-indigo-900' 
+            : 'bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800'
+        }`}
       >
-        {/* Animated Background Elements */}
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.1),transparent_70%)]" />
-          <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.05)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.05)_50%,rgba(255,255,255,0.05)_75%,transparent_75%,transparent)] bg-[size:60px_60px]" />
-        </div>
+        {/* Animated Background Elements - Only for modern devices */}
+        {!isOldPhone && (
+          <>
+            <div className="absolute inset-0 opacity-20">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.1),transparent_70%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.05)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.05)_50%,rgba(255,255,255,0.05)_75%,transparent_75%,transparent)] bg-[size:60px_60px]" />
+            </div>
+          </>
+        )}
         
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-32 md:py-40">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
           <motion.div 
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -223,10 +253,16 @@ setWebsites(data);
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.2, duration: 0.5 }}
-              className="inline-flex items-center px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full mb-8 border border-white/20"
+              className={`inline-flex items-center px-3 py-1.5 rounded-full mb-6 ${
+                isOldPhone 
+                  ? 'bg-white/20 text-indigo-100' 
+                  : 'bg-white/10 backdrop-blur-sm border border-white/20'
+              }`}
             >
-              <Sparkles className="h-4 w-4 text-yellow-300 mr-2" />
-              <span className="text-indigo-200 font-medium text-sm">
+              <Sparkles className="h-3 w-3 md:h-4 md:w-4 text-yellow-300 mr-1.5 md:mr-2" />
+              <span className={`font-medium text-xs md:text-sm ${
+                isOldPhone ? 'text-white/90' : 'text-indigo-200'
+              }`}>
                 Premium Web Solutions for Visionary Businesses
               </span>
             </motion.div>
@@ -235,7 +271,11 @@ setWebsites(data);
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3, duration: 0.6 }}
-              className="text-5xl md:text-7xl font-bold text-white tracking-tight mb-8 leading-tight"
+              className={`font-bold text-white mb-6 ${
+                isOldPhone 
+                  ? 'text-3xl md:text-4xl' 
+                  : 'text-4xl md:text-6xl lg:text-7xl tracking-tight leading-tight'
+              }`}
             >
               Digital Excellence, <span className="text-yellow-300">Engineered</span>
             </motion.h1>
@@ -244,7 +284,11 @@ setWebsites(data);
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4, duration: 0.6 }}
-              className="text-xl md:text-2xl text-indigo-100/90 mb-12 max-w-3xl mx-auto leading-relaxed"
+              className={`mb-8 ${
+                isOldPhone 
+                  ? 'text-base text-white/80' 
+                  : 'text-lg md:text-xl text-indigo-100/90 leading-relaxed'
+              }`}
             >
               We craft high-performance websites that transform digital presence into measurable business growth—combining strategic insight with technical mastery.
             </motion.p>
@@ -253,27 +297,37 @@ setWebsites(data);
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5, duration: 0.6 }}
-              className="flex flex-col sm:flex-row justify-center gap-4"
+              className="flex flex-col sm:flex-row justify-center gap-3 md:gap-4 mb-6"
             >
               <Link
                 href="/websites"
-                className="group relative px-8 py-4 bg-gradient-to-r from-white to-indigo-100 text-indigo-900 font-semibold rounded-xl hover:shadow-xl transition-all duration-300 overflow-hidden"
+                className={`group relative px-6 py-3 font-semibold rounded-lg transition-all duration-300 ${
+                  isOldPhone
+                    ? 'bg-white text-indigo-900'
+                    : 'bg-gradient-to-r from-white to-indigo-100 text-indigo-900 hover:shadow-xl'
+                }`}
               >
-                <span className="relative z-10 flex items-center justify-center">
+                <span className="flex items-center justify-center">
                   Explore Portfolio
-                  <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
+                  <ArrowRight className={`ml-1 h-3 w-3 md:h-4 md:w-4 ${
+                    !isOldPhone && 'group-hover:translate-x-1 transition-transform duration-300'
+                  }`} />
                 </span>
-                <div className="absolute inset-0 bg-gradient-to-r from-white to-indigo-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </Link>
               <Link
                 href="/get-started"
-                className="group relative px-8 py-4 bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 font-bold rounded-xl hover:shadow-xl transition-all duration-300 overflow-hidden"
+                className={`group relative px-6 py-3 font-bold rounded-lg transition-all duration-300 ${
+                  isOldPhone
+                    ? 'bg-yellow-400 text-gray-900'
+                    : 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 hover:shadow-xl'
+                }`}
               >
-                <span className="relative z-10 flex items-center justify-center">
+                <span className="flex items-center justify-center">
                   Let Us Create Your Website
-                  <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
+                  <ArrowRight className={`ml-1 h-3 w-3 md:h-4 md:w-4 ${
+                    !isOldPhone && 'group-hover:translate-x-1 transition-transform duration-300'
+                  }`} />
                 </span>
-                <div className="absolute inset-0 bg-gradient-to-r from-yellow-300 to-yellow-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </Link>
             </motion.div>
             
@@ -281,83 +335,113 @@ setWebsites(data);
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.7, duration: 0.5 }}
-              className="mt-6"
+              className="mt-4"
             >
               <Link
                 href="/contact"
-                className="inline-flex items-center text-white/80 hover:text-white font-medium text-sm transition-colors duration-300"
+                className={`inline-flex items-center ${
+                  isOldPhone
+                    ? 'text-white/70 hover:text-white'
+                    : 'text-white/80 hover:text-white'
+                } font-medium text-xs md:text-sm transition-colors duration-300`}
               >
-                <Mail className="h-4 w-4 mr-2" />
+                <Mail className="h-3 w-3 md:h-4 md:w-4 mr-1.5 md:mr-2" />
                 <span>Just have a question? Contact us</span>
               </Link>
             </motion.div>
           </motion.div>
           
-          {/* Floating Preview Grid */}
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7, duration: 0.8 }}
-            className="mt-20 hidden md:block"
-          >
-            <div className="grid grid-cols-3 gap-6">
-              {featuredSites.slice(0, 3).map((site, index) => {
-                const imageUrl = previewImages[site.id];
-                return (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.8 + index * 0.1, duration: 0.5 }}
-                    whileHover={{ y: -8, scale: 1.02 }}
-                    className="bg-white/10 backdrop-blur-lg rounded-2xl overflow-hidden border border-white/20 shadow-xl hover:shadow-2xl transition-all duration-300"
-                  >
-                    <div className="h-56 relative">
-                      {imageUrl ? (
-                        <Image
-                          src={imageUrl}
-                          alt={`${site.title} preview`}
-                          fill
-                          className="object-cover transition-transform duration-500 hover:scale-110"
-                          priority={index === 0}
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-gray-800/30 to-gray-900/40 flex items-center justify-center">
-                          <span className="text-gray-300 text-sm font-medium">Preview loading...</span>
+          {/* Floating Preview Grid - Only for desktop and modern devices */}
+          {!isOldPhone && (
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.7, duration: 0.8 }}
+              className="mt-12 hidden md:block"
+            >
+              <div className="grid grid-cols-3 gap-4">
+                {featuredSites.slice(0, 3).map((site, index) => {
+                  const imageUrl = previewImages[site.id];
+                  return (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.8 + index * 0.1, duration: 0.5 }}
+                      whileHover={!isOldPhone ? { y: -8, scale: 1.02 } : {}}
+                      className={`rounded-xl overflow-hidden shadow-md ${
+                        isOldPhone
+                          ? 'border border-white/20'
+                          : 'bg-white/10 backdrop-blur-lg border border-white/20 shadow-xl hover:shadow-2xl transition-all duration-300'
+                      }`}
+                    >
+                      <div className="h-40 md:h-56 relative">
+                        {imageUrl ? (
+                          <Image
+                            src={imageUrl}
+                            alt={`${site.title} preview`}
+                            fill
+                            className={`object-cover ${
+                              !isOldPhone && 'transition-transform duration-500 hover:scale-110'
+                            }`}
+                            priority={index === 0}
+                          />
+                        ) : (
+                          <div className={`w-full h-full flex items-center justify-center ${
+                            isOldPhone 
+                              ? 'bg-gray-800/40' 
+                              : 'bg-gradient-to-br from-gray-800/30 to-gray-900/40'
+                          }`}>
+                            <span className={`text-xs md:text-sm font-medium ${
+                              isOldPhone ? 'text-gray-200' : 'text-gray-300'
+                            }`}>Preview loading...</span>
+                          </div>
+                        )}
+                        <div className={`absolute inset-0 ${
+                          isOldPhone 
+                            ? 'bg-gradient-to-t from-black/50 to-transparent' 
+                            : 'bg-gradient-to-t from-black/60 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300'
+                        } flex items-end p-3`}>
+                          <span className={`font-medium text-xs md:text-sm ${
+                            isOldPhone ? 'text-white' : 'text-white'
+                          }`}>{site.title}</span>
                         </div>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
-                        <span className="text-white font-medium text-sm">{site.title}</span>
                       </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </motion.div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
         </div>
 
-        {/* Floating Particles */}
-        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-indigo-900 to-transparent pointer-events-none" />
+        {/* Floating Particles - Only for modern devices */}
+        {!isOldPhone && (
+          <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-indigo-900 to-transparent pointer-events-none" />
+        )}
       </motion.div>
 
-      {/* Featured Portfolio Grid - Premium Design */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+      {/* Featured Portfolio Grid - Premium Design with Old Phone Fallback */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-24">
         <motion.div 
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-20"
+          className="text-center mb-12 md:mb-20"
         >
           <motion.span 
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.4 }}
-            className="inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 rounded-full font-medium text-sm mb-4"
+            className={`inline-flex items-center justify-center px-3 py-1.5 rounded-full font-medium text-xs md:text-sm mb-3 md:mb-4 ${
+              isOldPhone
+                ? 'bg-gray-100 text-indigo-700'
+                : 'bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700'
+            }`}
           >
-            <Shield className="h-4 w-4 mr-2" />
+            <Shield className="h-3 w-3 md:h-4 md:w-4 mr-1.5 md:mr-2" />
             Our Portfolio
           </motion.span>
           
@@ -366,7 +450,11 @@ setWebsites(data);
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.1, duration: 0.5 }}
-            className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-indigo-800 mb-6"
+            className={`font-bold mb-4 ${
+              isOldPhone
+                ? 'text-2xl md:text-3xl text-gray-900'
+                : 'text-3xl md:text-4xl lg:text-5xl bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-indigo-800'
+            }`}
           >
             Transforming Digital Experiences
           </motion.h2>
@@ -376,13 +464,17 @@ setWebsites(data);
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.2, duration: 0.5 }}
-            className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed"
+            className={`text-gray-600 ${
+              isOldPhone
+                ? 'text-sm leading-relaxed'
+                : 'text-lg md:text-xl max-w-3xl mx-auto leading-relaxed'
+            }`}
           >
             Each website we create is a strategic asset engineered to achieve specific business objectives—backed by data-driven decisions and meticulous execution.
           </motion.p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
           <AnimatePresence>
             {featuredSites.map((site) => {
               const imageUrl = previewImages[site.id];
@@ -396,20 +488,26 @@ setWebsites(data);
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: "-100px" }}
                   transition={{ duration: 0.5 }}
-                  onHoverStart={() => setHoveredSite(site.id)}
+                  onHoverStart={() => !isOldPhone && setHoveredSite(site.id)}
                   onHoverEnd={() => setHoveredSite(null)}
-                  className={`group relative bg-white rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 ${
-                    adminMode ? 'pb-16' : ''
-                  }`}
+                  className={`group relative rounded-xl overflow-hidden transition-all duration-300 ${
+                    isOldPhone
+                      ? 'bg-white border border-gray-200 shadow-sm'
+                      : 'bg-white shadow-lg hover:shadow-2xl border border-gray-100'
+                  } ${adminMode ? 'pb-14 md:pb-16' : ''}`}
                 >
-                  <div className="relative h-64 w-full bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden">
+                  <div className={`relative h-48 w-full overflow-hidden ${
+                    isOldPhone ? 'bg-gray-100' : 'bg-gradient-to-br from-gray-50 to-gray-100'
+                  }`}>
                     {imageUrl ? (
                       <Image
                         src={imageUrl}
                         alt={`${site.title} website preview`}
                         fill
-                        className={`object-cover transition-transform duration-500 ${
-                          isHovered ? 'scale-110' : 'scale-100'
+                        className={`object-cover ${
+                          !isOldPhone && `transition-transform duration-500 ${
+                            isHovered ? 'scale-110' : 'scale-100'
+                          }`
                         }`}
                         priority={false}
                         sizes="(max-width: 768px) 100vw, 33vw"
@@ -420,52 +518,70 @@ setWebsites(data);
                         }}
                       />
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                        <div className="text-center px-4">
-                          <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center mx-auto mb-4 animate-pulse">
-                            <span className="text-indigo-600 font-bold text-lg">W</span>
+                      <div className={`w-full h-full flex items-center justify-center ${
+                        isOldPhone ? 'bg-gray-100' : 'bg-gradient-to-br from-gray-100 to-gray-200'
+                      }`}>
+                        <div className="text-center px-3">
+                          <div className={`w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-3 ${
+                            isOldPhone
+                              ? 'bg-indigo-100 text-indigo-600'
+                              : 'bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-600'
+                          } animate-pulse`}>
+                            <span className="font-bold text-base md:text-lg">W</span>
                           </div>
-                          <span className="text-gray-500 text-sm font-medium">
+                          <span className={`text-xs md:text-sm font-medium ${
+                            isOldPhone ? 'text-gray-600' : 'text-gray-500'
+                          }`}>
                             {loading ? 'Uploading preview...' : 'Preview unavailable'}
                           </span>
                         </div>
                       </div>
                     )}
                     
-                    {/* Category badge with gradient */}
+                    {/* Category badge with gradient - simplified for old phones */}
                     <motion.div
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.2 }}
-                      className="absolute top-4 left-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg z-10 border border-white/20"
+                      className={`absolute top-3 left-3 px-2.5 py-1 rounded-full font-bold text-xs z-10 ${
+                        isOldPhone
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg border border-white/20'
+                      }`}
                     >
                       {site.categoryName}
                     </motion.div>
                     
-                    {/* Hover overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        whileHover={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="text-white"
-                      >
-                        <h3 className="text-2xl font-bold mb-2">{site.title}</h3>
-                        <p className="text-gray-200 line-clamp-2 mb-4">{site.prompt}</p>
-                        <div className="flex items-center text-sm font-medium text-indigo-300">
-                          View Case Study
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </div>
-                      </motion.div>
-                    </div>
+                    {/* Hover overlay - disabled on old phones */}
+                    {!isOldPhone && (
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          whileHover={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="text-white"
+                        >
+                          <h3 className="text-xl md:text-2xl font-bold mb-1 md:mb-2">{site.title}</h3>
+                          <p className="text-gray-200 text-xs md:text-sm line-clamp-2 mb-3 md:mb-4">{site.prompt}</p>
+                          <div className="flex items-center text-xs md:text-sm font-medium text-indigo-300">
+                            View Case Study
+                            <ArrowRight className="ml-1.5 h-3 w-3 md:h-4 md:w-4" />
+                          </div>
+                        </motion.div>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="p-6 flex flex-col flex-1">
+                  <div className="p-4 md:p-6 flex flex-col flex-1">
                     <motion.h3 
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.1 }}
-                      className="text-2xl font-bold text-gray-900 mb-2 group-hover:text-indigo-700 transition-colors duration-300"
+                      className={`font-bold mb-1.5 ${
+                        isOldPhone
+                          ? 'text-xl text-gray-900'
+                          : 'text-xl md:text-2xl text-gray-900 group-hover:text-indigo-700 transition-colors duration-300'
+                      }`}
                     >
                       {site.title}
                     </motion.h3>
@@ -473,7 +589,9 @@ setWebsites(data);
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.2 }}
-                      className="text-gray-600 mb-4 flex-1 line-clamp-2 text-base leading-relaxed"
+                      className={`text-gray-600 mb-3 md:mb-4 flex-1 text-sm md:text-base ${
+                        isOldPhone ? 'line-clamp-3' : 'line-clamp-2'
+                      }`}
                     >
                       {site.prompt}
                     </motion.p>
@@ -482,46 +600,54 @@ setWebsites(data);
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.3 }}
-                      className="mt-auto pt-4 border-t border-gray-100"
+                      className="mt-auto pt-3 md:pt-4 border-t border-gray-100"
                     >
                       <Link
                         href={`/websites/${site.id}`}
-                        className="inline-flex items-center text-indigo-700 font-medium hover:text-indigo-900 transition-colors duration-300 group/link relative pb-1"
+                        className={`inline-flex items-center font-medium ${
+                          isOldPhone
+                            ? 'text-indigo-700'
+                            : 'text-indigo-700 hover:text-indigo-900 transition-colors duration-300 group/link relative pb-1'
+                        }`}
                       >
-                        <span className="relative z-10">View Case Study</span>
-                        <ArrowRight className="ml-2 h-4 w-4 transform group-hover/link:translate-x-1 transition-transform duration-300" />
-                        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-400 to-purple-500 transform scale-x-0 group-hover/link:scale-x-100 transition-transform duration-300 origin-left" />
+                        <span className="text-sm md:text-base">View Case Study</span>
+                        <ArrowRight className={`ml-1.5 h-3 w-3 md:h-4 md:w-4 ${
+                          !isOldPhone && 'group-hover/link:translate-x-1 transition-transform duration-300'
+                        }`} />
+                        {!isOldPhone && (
+                          <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-400 to-purple-500 transform scale-x-0 group-hover/link:scale-x-100 transition-transform duration-300 origin-left" />
+                        )}
                       </Link>
                     </motion.div>
                   </div>
 
-                  {adminMode && (
+                  {adminMode && !isOldPhone && (
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.4 }}
-                      className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-indigo-50 to-transparent p-4 border-t border-indigo-100"
+                      className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-indigo-50 to-transparent p-3 border-t border-indigo-100"
                     >
                       <label className="block text-center cursor-pointer">
-                        <span className="text-indigo-600 font-medium text-sm hover:text-indigo-800 transition-colors flex items-center justify-center gap-2 group">
+                        <span className="text-indigo-600 font-medium text-xs hover:text-indigo-800 transition-colors flex items-center justify-center gap-1.5 group">
                           {loading ? (
                             <>
                               <motion.div
                                 animate={{ rotate: 360 }}
                                 transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                                className="h-4 w-4 text-indigo-500"
+                                className="h-3 w-3 md:h-4 md:w-4 text-indigo-500"
                               >
                                 <svg className="h-full w-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25" />
-                                  <path stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 4.418 3.582 8 8 8v-4a4 4 0 00-4-4z" />
+                                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+                                  <path stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 4.418 3.582 8 8 8v-4a4 4 0 00-4-4z" />
                                 </svg>
                               </motion.div>
-                              <span>Uploading...</span>
+                              <span className="text-xs">Uploading...</span>
                             </>
                           ) : (
                             <>
-                              <Upload className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
-                              <span>Update Preview</span>
+                              <Upload className="h-3 w-3 md:h-4 md:w-4 group-hover:scale-110 transition-transform duration-200" />
+                              <span className="text-xs md:text-sm">Update Preview</span>
                             </>
                           )}
                         </span>
@@ -545,32 +671,46 @@ setWebsites(data);
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ delay: 0.6, duration: 0.5 }}
-          className="text-center mt-16"
+          className="text-center mt-12 md:mt-16"
         >
           <Link
             href="/websites"
-            className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-700 text-white font-bold rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 transform group"
+            className={`inline-flex items-center px-6 py-3 font-bold rounded-lg transition-all duration-300 ${
+              isOldPhone
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'bg-gradient-to-r from-indigo-600 to-purple-700 text-white shadow-lg hover:shadow-2xl hover:scale-105 transform'
+            }`}
           >
-            <span>Explore All {websites.length} Projects</span>
-            <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform duration-300" />
+            <span className="text-sm md:text-base">Explore All {websites.length} Projects</span>
+            <ArrowRight className="ml-1.5 h-3 w-3 md:ml-2 md:h-5 md:w-5" />
           </Link>
         </motion.div>
       </div>
 
-      {/* Value Proposition Section - Premium Design */}
-      <div className="py-24 bg-gradient-to-b from-gray-50 to-gray-100 overflow-hidden relative">
-        <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-5" />
+      {/* Value Proposition Section - Premium Design with Old Phone Fallback */}
+      <div className={`py-12 md:py-24 ${
+        isOldPhone
+          ? 'bg-gray-50'
+          : 'bg-gradient-to-b from-gray-50 to-gray-100 overflow-hidden relative'
+      }`}>
+        {!isOldPhone && (
+          <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-5" />
+        )}
         
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <div className="text-center mb-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12 md:mb-20">
             <motion.span 
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4 }}
-              className="inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-purple-50 to-indigo-50 text-purple-700 rounded-full font-medium text-sm mb-4"
+              className={`inline-flex items-center justify-center px-3 py-1.5 rounded-full font-medium text-xs md:text-sm mb-3 md:mb-4 ${
+                isOldPhone
+                  ? 'bg-purple-50 text-purple-700'
+                  : 'bg-gradient-to-r from-purple-50 to-indigo-50 text-purple-700'
+              }`}
             >
-              <Zap className="h-4 w-4 mr-2" />
+              <Zap className="h-3 w-3 md:h-4 md:w-4 mr-1.5 md:mr-2" />
               Our Process
             </motion.span>
             
@@ -579,7 +719,11 @@ setWebsites(data);
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.1, duration: 0.5 }}
-              className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-purple-800 mb-6"
+              className={`font-bold mb-4 ${
+                isOldPhone
+                  ? 'text-2xl md:text-3xl text-gray-900'
+                  : 'text-3xl md:text-4xl lg:text-5xl bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-purple-800'
+              }`}
             >
               The WhyNoWebsite Methodology
             </motion.h2>
@@ -589,13 +733,17 @@ setWebsites(data);
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.2, duration: 0.5 }}
-              className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed"
+              className={`text-gray-600 ${
+                isOldPhone
+                  ? 'text-sm leading-relaxed'
+                  : 'text-lg md:text-xl max-w-3xl mx-auto leading-relaxed'
+              }`}
             >
               We blend strategic thinking with technical excellence to deliver websites that drive measurable business results and sustainable growth.
             </motion.p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mb-12 md:mb-20">
             {[{
               icon: Target,
               title: "Strategic Discovery",
@@ -622,21 +770,35 @@ setWebsites(data);
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: 0.3 + i * 0.1, duration: 0.5 }}
-                  whileHover={{ y: -10 }}
-                  className="bg-white p-8 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100"
+                  whileHover={!isOldPhone ? { y: -10 } : {}}
+                  className={`rounded-xl transition-all duration-300 ${
+                    isOldPhone
+                      ? 'bg-white p-4 border border-gray-200'
+                      : 'bg-white p-6 md:p-8 shadow-md hover:shadow-xl border border-gray-100'
+                  }`}
                 >
-                  <div className={`p-4 rounded-xl bg-gradient-to-br ${item.color} inline-block mb-6`}>
-                    <Icon className="h-8 w-8 text-white" />
+                  <div className={`p-3 rounded-lg inline-block mb-4 ${
+                    isOldPhone
+                      ? 'bg-indigo-100'
+                      : `bg-gradient-to-br ${item.color} mb-6`
+                  }`}>
+                    <Icon className={`h-6 w-6 ${
+                      isOldPhone ? 'text-indigo-600' : 'text-white'
+                    }`} />
                   </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-3">{item.title}</h3>
-                  <p className="text-gray-600 leading-relaxed">{item.desc}</p>
+                  <h3 className={`font-bold mb-2 ${
+                    isOldPhone ? 'text-lg' : 'text-xl md:text-2xl text-gray-900'
+                  }`}>{item.title}</h3>
+                  <p className={`text-gray-600 ${
+                    isOldPhone ? 'text-sm' : 'leading-relaxed'
+                  }`}>{item.desc}</p>
                 </motion.div>
               );
             })}
           </div>
           
           {/* Client Benefits Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-20 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-12 md:mb-20 max-w-4xl mx-auto">
             {[{
               title: "95%+ Client Satisfaction",
               desc: "Our commitment to quality and communication ensures exceptional results."
@@ -659,18 +821,24 @@ setWebsites(data);
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: 0.6 + i * 0.1, duration: 0.4 }}
-                className={`flex items-start p-6 rounded-xl ${
+                className={`flex items-start p-4 rounded-lg ${
                   i % 2 === 0 
-                    ? 'bg-gradient-to-br from-indigo-50 to-purple-50' 
-                    : 'bg-gradient-to-br from-purple-50 to-pink-50'
+                    ? (isOldPhone ? 'bg-indigo-50' : 'bg-gradient-to-br from-indigo-50 to-purple-50') 
+                    : (isOldPhone ? 'bg-purple-50' : 'bg-gradient-to-br from-purple-50 to-pink-50')
                 }`}
               >
-                <div className="flex-shrink-0 mr-4 mt-1">
-                  <CheckCircle className="h-6 w-6 text-indigo-600" />
+                <div className="flex-shrink-0 mr-3 mt-0.5">
+                  <CheckCircle className={`h-5 w-5 ${
+                    isOldPhone ? 'text-indigo-600' : 'text-indigo-600'
+                  }`} />
                 </div>
                 <div>
-                  <h4 className="text-xl font-bold text-gray-900 mb-1">{benefit.title}</h4>
-                  <p className="text-gray-600">{benefit.desc}</p>
+                  <h4 className={`font-bold mb-1 ${
+                    isOldPhone ? 'text-base' : 'text-lg md:text-xl text-gray-900'
+                  }`}>{benefit.title}</h4>
+                  <p className={`text-gray-600 ${
+                    isOldPhone ? 'text-xs' : ''
+                  }`}>{benefit.desc}</p>
                 </div>
               </motion.div>
             ))}
@@ -684,18 +852,26 @@ setWebsites(data);
             className="text-center max-w-3xl mx-auto"
           >
             <motion.div
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={!isOldPhone ? { scale: 1.02 } : {}}
+              whileTap={!isOldPhone ? { scale: 0.98 } : {}}
             >
               <Link
                 href="/get-started"
-                className="inline-flex items-center justify-center px-10 py-5 bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 font-bold text-lg rounded-xl shadow-2xl hover:shadow-3xl transition-all duration-300 group"
+                className={`inline-flex items-center justify-center px-6 py-3 font-bold rounded-lg transition-all duration-300 ${
+                  isOldPhone
+                    ? 'bg-yellow-400 text-gray-900 shadow-md'
+                    : 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 shadow-2xl hover:shadow-3xl group'
+                }`}
               >
-                <span>Let Us Create Your Website</span>
-                <ArrowRight className="ml-3 h-6 w-6 group-hover:translate-x-1 transition-transform duration-300" />
+                <span className="text-sm md:text-base">Let Us Create Your Website</span>
+                <ArrowRight className={`ml-2 h-4 w-4 md:ml-3 md:h-6 md:w-6 ${
+                  !isOldPhone && 'group-hover:translate-x-1 transition-transform duration-300'
+                }`} />
               </Link>
             </motion.div>
-            <p className="mt-6 text-gray-600 text-lg">
+            <p className={`mt-4 text-gray-600 ${
+              isOldPhone ? 'text-xs' : 'text-lg'
+            }`}>
               Ready to transform your digital presence? Get started today and we'll create a website that drives real business results.
             </p>
           </motion.div>
@@ -705,21 +881,33 @@ setWebsites(data);
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.9, duration: 0.5 }}
-            className="text-center mt-8"
+            className="text-center mt-6 md:mt-8"
           >
             <Link
               href="/contact"
-              className="inline-flex items-center text-indigo-600 hover:text-indigo-800 font-medium text-base transition-colors duration-300"
+              className={`inline-flex items-center font-medium transition-colors duration-300 ${
+                isOldPhone
+                  ? 'text-indigo-600 hover:text-indigo-800'
+                  : 'text-indigo-600 hover:text-indigo-800'
+              }`}
             >
-              <MessageCircle className="h-5 w-5 mr-2" />
-              <span>Have questions first? Get in touch</span>
+              <MessageCircle className={`h-4 w-4 mr-1.5 ${
+                isOldPhone ? 'h-4 w-4' : 'h-5 w-5 mr-2'
+              }`} />
+              <span className={`text-xs md:text-base ${
+                isOldPhone ? 'text-sm' : ''
+              }`}>Have questions first? Get in touch</span>
             </Link>
           </motion.div>
         </div>
       </div>
 
       {/* CTA Section - Focused on Website Creation */}
-      <div className="py-20 bg-gradient-to-br from-indigo-900 to-purple-900">
+      <div className={`py-12 md:py-20 ${
+        isOldPhone
+          ? 'bg-indigo-900'
+          : 'bg-gradient-to-br from-indigo-900 to-purple-900'
+      }`}>
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -727,39 +915,63 @@ setWebsites(data);
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
           >
-            <span className="text-indigo-200 font-medium text-sm tracking-wide uppercase mb-4 block">
+            <span className={`font-medium text-xs md:text-sm tracking-wide uppercase mb-3 block ${
+              isOldPhone ? 'text-indigo-200/80' : 'text-indigo-200'
+            }`}>
               Ready to transform your digital presence?
             </span>
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
+            <h2 className={`font-bold mb-4 ${
+              isOldPhone
+                ? 'text-2xl md:text-3xl text-white'
+                : 'text-3xl md:text-4xl lg:text-5xl text-white'
+            }`}>
               Your <span className="text-yellow-300">Website Awaits</span>
             </h2>
-            <p className="text-xl text-indigo-100/90 mb-10 max-w-2xl mx-auto leading-relaxed">
+            <p className={`mb-8 md:mb-10 ${
+              isOldPhone
+                ? 'text-sm text-indigo-100/80'
+                : 'text-lg md:text-xl text-indigo-100/90 leading-relaxed max-w-2xl mx-auto'
+            }`}>
               Fill out our simple form and we'll create a custom website proposal tailored to your business goals. We respond within 24 hours to get your project started.
             </p>
             
             <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="flex flex-col sm:flex-row justify-center gap-4 items-center"
+              whileHover={!isOldPhone ? { scale: 1.05 } : {}}
+              whileTap={!isOldPhone ? { scale: 0.95 } : {}}
+              className="flex flex-col sm:flex-row justify-center gap-3 md:gap-4 items-center"
             >
               <Link
                 href="/get-started"
-                className="inline-flex items-center px-10 py-5 bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 font-bold text-lg rounded-xl shadow-2xl hover:shadow-3xl transition-all duration-300 group"
+                className={`inline-flex items-center px-6 py-3 font-bold rounded-lg transition-all duration-300 ${
+                  isOldPhone
+                    ? 'bg-yellow-400 text-gray-900 shadow-md'
+                    : 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 shadow-2xl hover:shadow-3xl group'
+                }`}
               >
-                <span>Get Started Now</span>
-                <ArrowRight className="ml-3 h-6 w-6 group-hover:translate-x-1 transition-transform duration-300" />
+                <span className="text-sm md:text-base">Get Started Now</span>
+                <ArrowRight className={`ml-2 h-4 w-4 md:ml-3 md:h-6 md:w-6 ${
+                  !isOldPhone && 'group-hover:translate-x-1 transition-transform duration-300'
+                }`} />
               </Link>
               
               <Link
                 href="/contact"
-                className="inline-flex items-center px-8 py-4 bg-transparent border-2 border-white/80 text-white font-semibold rounded-xl hover:bg-white/10 backdrop-blur-sm transition-all duration-300"
+                className={`inline-flex items-center px-6 py-3 font-semibold rounded-lg transition-all duration-300 ${
+                  isOldPhone
+                    ? 'bg-white/10 text-white border border-white/50'
+                    : 'bg-transparent border-2 border-white/80 text-white hover:bg-white/10 backdrop-blur-sm'
+                }`}
               >
-                <Mail className="h-5 w-5 mr-2" />
-                <span>Contact Us</span>
+                <Mail className={`h-4 w-4 mr-1.5 ${
+                  isOldPhone ? 'h-4 w-4 mr-2' : 'h-5 w-5 mr-2'
+                }`} />
+                <span className="text-sm md:text-base">Contact Us</span>
               </Link>
             </motion.div>
             
-            <p className="mt-8 text-indigo-200/80 text-base">
+            <p className={`mt-6 text-indigo-200/80 ${
+              isOldPhone ? 'text-xs' : 'text-base'
+            }`}>
               Not ready to start a project? We're happy to answer your questions and provide guidance.
             </p>
           </motion.div>
@@ -768,14 +980,14 @@ setWebsites(data);
 
       {/* Admin mode indicator - Elegant */}
       <AnimatePresence>
-        {adminMode && (
+        {adminMode && !isOldPhone && (
           <motion.div
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-8 right-8 bg-gradient-to-r from-indigo-600 to-purple-700 text-white px-6 py-3 rounded-2xl shadow-2xl text-sm font-medium z-50 flex items-center gap-2 backdrop-blur-sm"
+            className="fixed bottom-6 right-6 bg-gradient-to-r from-indigo-600 to-purple-700 text-white px-4 py-2 rounded-xl shadow-lg text-xs md:text-sm font-medium z-50 flex items-center gap-1.5 backdrop-blur-sm md:bottom-8 md:right-8 md:px-6 md:py-3"
           >
-            <Shield className="h-4 w-4" />
+            <Shield className="h-3 w-3 md:h-4 md:w-4" />
             <span>Admin Mode Active</span>
           </motion.div>
         )}
