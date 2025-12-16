@@ -1,22 +1,18 @@
+// app/page.tsx
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
-import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
-import { ArrowRight, Upload, Shield, Rocket, Target, Zap, TrendingUp, Sparkles, CheckCircle, MessageCircle, Mail } from 'lucide-react';
 
-// Add this at the top to detect older devices
-const isOldDevice = () => {
-  // Simple detection for older mobile devices
-  const ua = navigator.userAgent.toLowerCase();
-  const isOldAndroid = ua.includes('android') && !ua.includes('chrome');
-  const isOldIos = ua.includes('iphone') || ua.includes('ipad');
-  const isOldBrowser = !('CSS' in window) || !CSS.supports('backdrop-filter', 'blur(10px)');
-  
-  return isOldAndroid || isOldIos || isOldBrowser || window.innerWidth < 320;
-};
+// Fallback for icons on old devices
+const ArrowRightIcon = () => <span>→</span>;
+const UploadIcon = () => <span>🖼️</span>;
+const ShieldIcon = () => <span>🛡️</span>;
+const SparklesIcon = () => <span>✨</span>;
+const MailIcon = () => <span>✉️</span>;
+const MessageCircleIcon = () => <span>💬</span>;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,20 +37,16 @@ export default function HomePage() {
   const [adminMode, setAdminMode] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [hoveredSite, setHoveredSite] = useState<string | null>(null);
-  const { scrollY } = useScroll();
-  const backgroundOpacity = useTransform(scrollY, [0, 100], [1, 0.95]);
-  const heroScale = useTransform(scrollY, [0, 200], [1, 0.98]);
-  
-  // Add state for device detection
-  const [isOldPhone, setIsOldPhone] = useState(false);
 
-  // Detect old devices on mount
+  // Simple scroll effect fallback
+  const [scrollPosition, setScrollPosition] = useState(0);
   useEffect(() => {
-    setIsOldPhone(isOldDevice());
+    const handleScroll = () => setScrollPosition(window.scrollY);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Fetch websites from your existing API
+  // Fetch websites from API
   useEffect(() => {
     const fetchWebsites = async () => {
       try {
@@ -83,7 +75,7 @@ export default function HomePage() {
     checkUser();
   }, []);
 
-  // Load preview images using your established path structure
+  // Load preview images
   useEffect(() => {
     if (websites.length === 0) return;
 
@@ -111,7 +103,6 @@ export default function HomePage() {
       for (const img of images) {
         const parts = img.path.split('/');
         if (parts.length >= 5 && parts[1] === WEBSITES_PREVIEW_PREFIX) {
-          // Reconstruct id: category/site-name
           const siteId = `${parts[2]}/${parts[3]}`;
           if (!latestImagePerSite[siteId]) {
             latestImagePerSite[siteId] = img.path;
@@ -180,37 +171,64 @@ export default function HomePage() {
     }
   };
 
-  // Select 9 high-impact sites (shuffle + slice)
+  // Select featured sites
   const featuredSites = useMemo(() => {
     if (websites.length === 0) return [];
     const shuffled = [...websites].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 9);
   }, [websites]);
 
-  // Enhanced loading skeleton with better mobile support
-  const SkeletonCard = () => (
-    <div className="bg-gray-50 rounded-xl overflow-hidden border border-gray-200 shadow-sm animate-pulse">
-      <div className="h-48 bg-gradient-to-br from-gray-100 to-gray-200 md:h-64" />
-      <div className="p-4 md:p-6">
-        <div className="h-3 bg-gray-200 rounded w-1/3 mb-2" />
-        <div className="h-5 bg-gray-200 rounded w-2/3 mb-2" />
-        <div className="h-3 bg-gray-200 rounded w-full mb-3" />
-        <div className="h-3 bg-gray-200 rounded w-1/4" />
-      </div>
-    </div>
-  );
-
+  // Simple loading state
   if (loading && websites.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-16">
-          <div className="text-center mb-8 md:mb-12">
-            <div className="h-8 w-32 bg-gray-200 rounded mx-auto mb-3 md:mb-4 animate-pulse" />
-            <div className="h-4 w-64 bg-gray-200 rounded mx-auto animate-pulse" />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+      <div style={{ 
+        minHeight: '100vh', 
+        backgroundColor: '#f8f9fa',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+        padding: '20px'
+      }}>
+        <div style={{ 
+          maxWidth: '1200px', 
+          margin: '0 auto',
+          textAlign: 'center' as const,
+          padding: '40px 0'
+        }}>
+          <div style={{ 
+            height: '48px', 
+            width: '192px', 
+            backgroundColor: '#e9ecef', 
+            borderRadius: '9999px',
+            margin: '0 auto 16px'
+          }} />
+          <div style={{ 
+            height: '24px', 
+            width: '384px', 
+            backgroundColor: '#e9ecef', 
+            borderRadius: '4px',
+            margin: '0 auto'
+          }} />
+          
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+            gap: '24px',
+            marginTop: '48px'
+          }}>
             {[...Array(9)].map((_, i) => (
-              <SkeletonCard key={i} />
+              <div key={i} style={{ 
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                border: '1px solid #e9ecef',
+                overflow: 'hidden'
+              }}>
+                <div style={{ height: '256px', backgroundColor: '#f8f9fa' }} />
+                <div style={{ padding: '24px' }}>
+                  <div style={{ height: '16px', backgroundColor: '#e9ecef', width: '33%', marginBottom: '8px' }} />
+                  <div style={{ height: '24px', backgroundColor: '#e9ecef', width: '66%', marginBottom: '12px' }} />
+                  <div style={{ height: '16px', backgroundColor: '#e9ecef', width: '100%', marginBottom: '16px' }} />
+                  <div style={{ height: '16px', backgroundColor: '#e9ecef', width: '25%' }} />
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -219,586 +237,405 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Hero Section - Ultra Modern with Old Phone Fallback */}
-      <motion.div 
-        style={{ 
-          opacity: backgroundOpacity, 
-          scale: isOldPhone ? 1 : heroScale 
-        }}
-        className={`relative overflow-hidden ${
-          isOldPhone 
-            ? 'bg-indigo-900' 
-            : 'bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800'
-        }`}
-      >
-        {/* Animated Background Elements - Only for modern devices */}
-        {!isOldPhone && (
-          <>
-            <div className="absolute inset-0 opacity-20">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.1),transparent_70%)]" />
-              <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.05)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.05)_50%,rgba(255,255,255,0.05)_75%,transparent_75%,transparent)] bg-[size:60px_60px]" />
-            </div>
-          </>
-        )}
-        
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className="text-center max-w-4xl mx-auto"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2, duration: 0.5 }}
-              className={`inline-flex items-center px-3 py-1.5 rounded-full mb-6 ${
-                isOldPhone 
-                  ? 'bg-white/20 text-indigo-100' 
-                  : 'bg-white/10 backdrop-blur-sm border border-white/20'
-              }`}
-            >
-              <Sparkles className="h-3 w-3 md:h-4 md:w-4 text-yellow-300 mr-1.5 md:mr-2" />
-              <span className={`font-medium text-xs md:text-sm ${
-                isOldPhone ? 'text-white/90' : 'text-indigo-200'
-              }`}>
-                Premium Web Solutions for Visionary Businesses
-              </span>
-            </motion.div>
-            
-            <motion.h1 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3, duration: 0.6 }}
-              className={`font-bold text-white mb-6 ${
-                isOldPhone 
-                  ? 'text-3xl md:text-4xl' 
-                  : 'text-4xl md:text-6xl lg:text-7xl tracking-tight leading-tight'
-              }`}
-            >
-              Digital Excellence, <span className="text-yellow-300">Engineered</span>
-            </motion.h1>
-            
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4, duration: 0.6 }}
-              className={`mb-8 ${
-                isOldPhone 
-                  ? 'text-base text-white/80' 
-                  : 'text-lg md:text-xl text-indigo-100/90 leading-relaxed'
-              }`}
-            >
-              We craft high-performance websites that transform digital presence into measurable business growth—combining strategic insight with technical mastery.
-            </motion.p>
-            
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.6 }}
-              className="flex flex-col sm:flex-row justify-center gap-3 md:gap-4 mb-6"
-            >
-              <Link
-                href="/websites"
-                className={`group relative px-6 py-3 font-semibold rounded-lg transition-all duration-300 ${
-                  isOldPhone
-                    ? 'bg-white text-indigo-900'
-                    : 'bg-gradient-to-r from-white to-indigo-100 text-indigo-900 hover:shadow-xl'
-                }`}
-              >
-                <span className="flex items-center justify-center">
-                  Explore Portfolio
-                  <ArrowRight className={`ml-1 h-3 w-3 md:h-4 md:w-4 ${
-                    !isOldPhone && 'group-hover:translate-x-1 transition-transform duration-300'
-                  }`} />
-                </span>
-              </Link>
-              <Link
-                href="/get-started"
-                className={`group relative px-6 py-3 font-bold rounded-lg transition-all duration-300 ${
-                  isOldPhone
-                    ? 'bg-yellow-400 text-gray-900'
-                    : 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 hover:shadow-xl'
-                }`}
-              >
-                <span className="flex items-center justify-center">
-                  Let Us Create Your Website
-                  <ArrowRight className={`ml-1 h-3 w-3 md:h-4 md:w-4 ${
-                    !isOldPhone && 'group-hover:translate-x-1 transition-transform duration-300'
-                  }`} />
-                </span>
-              </Link>
-            </motion.div>
-            
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7, duration: 0.5 }}
-              className="mt-4"
-            >
-              <Link
-                href="/contact"
-                className={`inline-flex items-center ${
-                  isOldPhone
-                    ? 'text-white/70 hover:text-white'
-                    : 'text-white/80 hover:text-white'
-                } font-medium text-xs md:text-sm transition-colors duration-300`}
-              >
-                <Mail className="h-3 w-3 md:h-4 md:w-4 mr-1.5 md:mr-2" />
-                <span>Just have a question? Contact us</span>
-              </Link>
-            </motion.div>
-          </motion.div>
+    <div style={{ 
+      minHeight: '100vh',
+      backgroundColor: '#f8f9fa',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+      color: '#212529'
+    }}>
+      {/* Hero Section - Simplified for old devices */}
+      <div style={{ 
+        backgroundColor: '#4f46e5',
+        backgroundImage: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+        color: 'white',
+        padding: '60px 20px',
+        textAlign: 'center' as const
+      }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+          <div style={{ 
+            display: 'inline-block',
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+            borderRadius: '9999px',
+            padding: '8px 16px',
+            marginBottom: '24px',
+            border: '1px solid rgba(255, 255, 255, 0.2)'
+          }}>
+            <SparklesIcon /> 
+            <span style={{ marginLeft: '8px', fontSize: '14px' }}>Premium Web Solutions for Visionary Businesses</span>
+          </div>
           
-          {/* Floating Preview Grid - Only for desktop and modern devices */}
-          {!isOldPhone && (
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7, duration: 0.8 }}
-              className="mt-12 hidden md:block"
+          <h1 style={{ 
+            fontSize: '2.5rem',
+            fontWeight: 'bold',
+            marginBottom: '24px',
+            lineHeight: 1.2
+          }}>
+            Digital Excellence, <span style={{ color: '#fbbf24' }}>Engineered</span>
+          </h1>
+          
+          <p style={{ 
+            fontSize: '1.25rem',
+            marginBottom: '32px',
+            opacity: 0.9,
+            maxWidth: '600px',
+            margin: '0 auto 32px'
+          }}>
+            We craft high-performance websites that transform digital presence into measurable business growth
+          </p>
+          
+          <div style={{ 
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '16px',
+            maxWidth: '500px',
+            margin: '0 auto'
+          }}>
+            <Link 
+              href="/websites"
+              style={{ 
+                display: 'block',
+                width: '100%',
+                backgroundColor: 'white',
+                color: '#4f46e5',
+                padding: '16px 32px',
+                borderRadius: '12px',
+                fontWeight: 'bold',
+                textDecoration: 'none',
+                textAlign: 'center' as const,
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+              }}
             >
-              <div className="grid grid-cols-3 gap-4">
-                {featuredSites.slice(0, 3).map((site, index) => {
-                  const imageUrl = previewImages[site.id];
-                  return (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.8 + index * 0.1, duration: 0.5 }}
-                      whileHover={!isOldPhone ? { y: -8, scale: 1.02 } : {}}
-                      className={`rounded-xl overflow-hidden shadow-md ${
-                        isOldPhone
-                          ? 'border border-white/20'
-                          : 'bg-white/10 backdrop-blur-lg border border-white/20 shadow-xl hover:shadow-2xl transition-all duration-300'
-                      }`}
-                    >
-                      <div className="h-40 md:h-56 relative">
-                        {imageUrl ? (
-                          <Image
-                            src={imageUrl}
-                            alt={`${site.title} preview`}
-                            fill
-                            className={`object-cover ${
-                              !isOldPhone && 'transition-transform duration-500 hover:scale-110'
-                            }`}
-                            priority={index === 0}
-                          />
-                        ) : (
-                          <div className={`w-full h-full flex items-center justify-center ${
-                            isOldPhone 
-                              ? 'bg-gray-800/40' 
-                              : 'bg-gradient-to-br from-gray-800/30 to-gray-900/40'
-                          }`}>
-                            <span className={`text-xs md:text-sm font-medium ${
-                              isOldPhone ? 'text-gray-200' : 'text-gray-300'
-                            }`}>Preview loading...</span>
-                          </div>
-                        )}
-                        <div className={`absolute inset-0 ${
-                          isOldPhone 
-                            ? 'bg-gradient-to-t from-black/50 to-transparent' 
-                            : 'bg-gradient-to-t from-black/60 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300'
-                        } flex items-end p-3`}>
-                          <span className={`font-medium text-xs md:text-sm ${
-                            isOldPhone ? 'text-white' : 'text-white'
-                          }`}>{site.title}</span>
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </motion.div>
-          )}
+              Explore Portfolio
+            </Link>
+            
+            <Link 
+              href="/get-started"
+              style={{ 
+                display: 'block',
+                width: '100%',
+                backgroundColor: '#fbbf24',
+                color: '#1e293b',
+                padding: '16px 32px',
+                borderRadius: '12px',
+                fontWeight: 'bold',
+                textDecoration: 'none',
+                textAlign: 'center' as const,
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+              }}
+            >
+              Let Us Create Your Website
+            </Link>
+          </div>
+          
+          <div style={{ marginTop: '24px' }}>
+            <Link 
+              href="/contact"
+              style={{ 
+                color: 'rgba(255, 255, 255, 0.8)',
+                textDecoration: 'none',
+                fontSize: '14px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <MailIcon />
+              <span style={{ marginLeft: '8px' }}>Just have a question? Contact us</span>
+            </Link>
+          </div>
         </div>
-
-        {/* Floating Particles - Only for modern devices */}
-        {!isOldPhone && (
-          <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-indigo-900 to-transparent pointer-events-none" />
-        )}
-      </motion.div>
-
-      {/* Featured Portfolio Grid - Premium Design with Old Phone Fallback */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-24">
-        <motion.div 
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-12 md:mb-20"
-        >
-          <motion.span 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.4 }}
-            className={`inline-flex items-center justify-center px-3 py-1.5 rounded-full font-medium text-xs md:text-sm mb-3 md:mb-4 ${
-              isOldPhone
-                ? 'bg-gray-100 text-indigo-700'
-                : 'bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700'
-            }`}
-          >
-            <Shield className="h-3 w-3 md:h-4 md:w-4 mr-1.5 md:mr-2" />
-            Our Portfolio
-          </motion.span>
-          
-          <motion.h2 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.1, duration: 0.5 }}
-            className={`font-bold mb-4 ${
-              isOldPhone
-                ? 'text-2xl md:text-3xl text-gray-900'
-                : 'text-3xl md:text-4xl lg:text-5xl bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-indigo-800'
-            }`}
-          >
-            Transforming Digital Experiences
-          </motion.h2>
-          
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.2, duration: 0.5 }}
-            className={`text-gray-600 ${
-              isOldPhone
-                ? 'text-sm leading-relaxed'
-                : 'text-lg md:text-xl max-w-3xl mx-auto leading-relaxed'
-            }`}
-          >
-            Each website we create is a strategic asset engineered to achieve specific business objectives—backed by data-driven decisions and meticulous execution.
-          </motion.p>
-        </motion.div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-          <AnimatePresence>
-            {featuredSites.map((site) => {
-              const imageUrl = previewImages[site.id];
-              const loading = uploadingId === site.id;
-              const isHovered = hoveredSite === site.id;
-
-              return (
-                <motion.div
-                  key={site.id}
-                  initial={{ opacity: 0, y: 40 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: "-100px" }}
-                  transition={{ duration: 0.5 }}
-                  onHoverStart={() => !isOldPhone && setHoveredSite(site.id)}
-                  onHoverEnd={() => setHoveredSite(null)}
-                  className={`group relative rounded-xl overflow-hidden transition-all duration-300 ${
-                    isOldPhone
-                      ? 'bg-white border border-gray-200 shadow-sm'
-                      : 'bg-white shadow-lg hover:shadow-2xl border border-gray-100'
-                  } ${adminMode ? 'pb-14 md:pb-16' : ''}`}
-                >
-                  <div className={`relative h-48 w-full overflow-hidden ${
-                    isOldPhone ? 'bg-gray-100' : 'bg-gradient-to-br from-gray-50 to-gray-100'
-                  }`}>
-                    {imageUrl ? (
-                      <Image
-                        src={imageUrl}
-                        alt={`${site.title} website preview`}
-                        fill
-                        className={`object-cover ${
-                          !isOldPhone && `transition-transform duration-500 ${
-                            isHovered ? 'scale-110' : 'scale-100'
-                          }`
-                        }`}
-                        priority={false}
-                        sizes="(max-width: 768px) 100vw, 33vw"
-                        placeholder="blur"
-                        blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2VlZiIvPjwvc3ZnPg=="
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = '/placeholder-site.jpg';
-                        }}
-                      />
-                    ) : (
-                      <div className={`w-full h-full flex items-center justify-center ${
-                        isOldPhone ? 'bg-gray-100' : 'bg-gradient-to-br from-gray-100 to-gray-200'
-                      }`}>
-                        <div className="text-center px-3">
-                          <div className={`w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-3 ${
-                            isOldPhone
-                              ? 'bg-indigo-100 text-indigo-600'
-                              : 'bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-600'
-                          } animate-pulse`}>
-                            <span className="font-bold text-base md:text-lg">W</span>
-                          </div>
-                          <span className={`text-xs md:text-sm font-medium ${
-                            isOldPhone ? 'text-gray-600' : 'text-gray-500'
-                          }`}>
-                            {loading ? 'Uploading preview...' : 'Preview unavailable'}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Category badge with gradient - simplified for old phones */}
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.2 }}
-                      className={`absolute top-3 left-3 px-2.5 py-1 rounded-full font-bold text-xs z-10 ${
-                        isOldPhone
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg border border-white/20'
-                      }`}
-                    >
-                      {site.categoryName}
-                    </motion.div>
-                    
-                    {/* Hover overlay - disabled on old phones */}
-                    {!isOldPhone && (
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
-                        <motion.div
-                          initial={{ opacity: 0, y: 20 }}
-                          whileHover={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.3 }}
-                          className="text-white"
-                        >
-                          <h3 className="text-xl md:text-2xl font-bold mb-1 md:mb-2">{site.title}</h3>
-                          <p className="text-gray-200 text-xs md:text-sm line-clamp-2 mb-3 md:mb-4">{site.prompt}</p>
-                          <div className="flex items-center text-xs md:text-sm font-medium text-indigo-300">
-                            View Case Study
-                            <ArrowRight className="ml-1.5 h-3 w-3 md:h-4 md:w-4" />
-                          </div>
-                        </motion.div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="p-4 md:p-6 flex flex-col flex-1">
-                    <motion.h3 
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.1 }}
-                      className={`font-bold mb-1.5 ${
-                        isOldPhone
-                          ? 'text-xl text-gray-900'
-                          : 'text-xl md:text-2xl text-gray-900 group-hover:text-indigo-700 transition-colors duration-300'
-                      }`}
-                    >
-                      {site.title}
-                    </motion.h3>
-                    <motion.p 
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.2 }}
-                      className={`text-gray-600 mb-3 md:mb-4 flex-1 text-sm md:text-base ${
-                        isOldPhone ? 'line-clamp-3' : 'line-clamp-2'
-                      }`}
-                    >
-                      {site.prompt}
-                    </motion.p>
-                    
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3 }}
-                      className="mt-auto pt-3 md:pt-4 border-t border-gray-100"
-                    >
-                      <Link
-                        href={`/websites/${site.id}`}
-                        className={`inline-flex items-center font-medium ${
-                          isOldPhone
-                            ? 'text-indigo-700'
-                            : 'text-indigo-700 hover:text-indigo-900 transition-colors duration-300 group/link relative pb-1'
-                        }`}
-                      >
-                        <span className="text-sm md:text-base">View Case Study</span>
-                        <ArrowRight className={`ml-1.5 h-3 w-3 md:h-4 md:w-4 ${
-                          !isOldPhone && 'group-hover/link:translate-x-1 transition-transform duration-300'
-                        }`} />
-                        {!isOldPhone && (
-                          <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-400 to-purple-500 transform scale-x-0 group-hover/link:scale-x-100 transition-transform duration-300 origin-left" />
-                        )}
-                      </Link>
-                    </motion.div>
-                  </div>
-
-                  {adminMode && !isOldPhone && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.4 }}
-                      className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-indigo-50 to-transparent p-3 border-t border-indigo-100"
-                    >
-                      <label className="block text-center cursor-pointer">
-                        <span className="text-indigo-600 font-medium text-xs hover:text-indigo-800 transition-colors flex items-center justify-center gap-1.5 group">
-                          {loading ? (
-                            <>
-                              <motion.div
-                                animate={{ rotate: 360 }}
-                                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                                className="h-3 w-3 md:h-4 md:w-4 text-indigo-500"
-                              >
-                                <svg className="h-full w-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
-                                  <path stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 4.418 3.582 8 8 8v-4a4 4 0 00-4-4z" />
-                                </svg>
-                              </motion.div>
-                              <span className="text-xs">Uploading...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Upload className="h-3 w-3 md:h-4 md:w-4 group-hover:scale-110 transition-transform duration-200" />
-                              <span className="text-xs md:text-sm">Update Preview</span>
-                            </>
-                          )}
-                        </span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => handleUpload(e, site.id)}
-                          className="hidden"
-                        />
-                      </label>
-                    </motion.div>
-                  )}
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-        </div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.6, duration: 0.5 }}
-          className="text-center mt-12 md:mt-16"
-        >
-          <Link
-            href="/websites"
-            className={`inline-flex items-center px-6 py-3 font-bold rounded-lg transition-all duration-300 ${
-              isOldPhone
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'bg-gradient-to-r from-indigo-600 to-purple-700 text-white shadow-lg hover:shadow-2xl hover:scale-105 transform'
-            }`}
-          >
-            <span className="text-sm md:text-base">Explore All {websites.length} Projects</span>
-            <ArrowRight className="ml-1.5 h-3 w-3 md:ml-2 md:h-5 md:w-5" />
-          </Link>
-        </motion.div>
       </div>
 
-      {/* Value Proposition Section - Premium Design with Old Phone Fallback */}
-      <div className={`py-12 md:py-24 ${
-        isOldPhone
-          ? 'bg-gray-50'
-          : 'bg-gradient-to-b from-gray-50 to-gray-100 overflow-hidden relative'
-      }`}>
-        {!isOldPhone && (
-          <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-5" />
-        )}
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12 md:mb-20">
-            <motion.span 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4 }}
-              className={`inline-flex items-center justify-center px-3 py-1.5 rounded-full font-medium text-xs md:text-sm mb-3 md:mb-4 ${
-                isOldPhone
-                  ? 'bg-purple-50 text-purple-700'
-                  : 'bg-gradient-to-r from-purple-50 to-indigo-50 text-purple-700'
-              }`}
-            >
-              <Zap className="h-3 w-3 md:h-4 md:w-4 mr-1.5 md:mr-2" />
-              Our Process
-            </motion.span>
-            
-            <motion.h2 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1, duration: 0.5 }}
-              className={`font-bold mb-4 ${
-                isOldPhone
-                  ? 'text-2xl md:text-3xl text-gray-900'
-                  : 'text-3xl md:text-4xl lg:text-5xl bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-purple-800'
-              }`}
-            >
-              The WhyNoWebsite Methodology
-            </motion.h2>
-            
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2, duration: 0.5 }}
-              className={`text-gray-600 ${
-                isOldPhone
-                  ? 'text-sm leading-relaxed'
-                  : 'text-lg md:text-xl max-w-3xl mx-auto leading-relaxed'
-              }`}
-            >
-              We blend strategic thinking with technical excellence to deliver websites that drive measurable business results and sustainable growth.
-            </motion.p>
+      {/* Portfolio Grid */}
+      <div style={{ 
+        maxWidth: '1200px', 
+        margin: '0 auto',
+        padding: '60px 20px'
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: '48px' }}>
+          <div style={{ 
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: '#eef2ff',
+            color: '#4f46e5',
+            borderRadius: '9999px',
+            padding: '8px 24px',
+            marginBottom: '16px'
+          }}>
+            <ShieldIcon />
+            <span style={{ marginLeft: '8px', fontWeight: '500' }}>Our Portfolio</span>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mb-12 md:mb-20">
-            {[{
-              icon: Target,
-              title: "Strategic Discovery",
-              desc: "Deep business analysis to understand your unique challenges and align digital strategy with core objectives.",
-              color: "from-indigo-500 to-purple-600"
-            },
-            {
-              icon: Rocket,
-              title: "Precision Execution",
-              desc: "Meticulous design and development focusing on performance, user experience, and conversion optimization.",
-              color: "from-purple-500 to-pink-600"
-            },
-            {
-              icon: TrendingUp,
-              title: "Growth Partnership",
-              desc: "Ongoing optimization and strategic guidance to ensure your digital presence evolves with your business.",
-              color: "from-pink-500 to-rose-600"
-            }].map((item, i) => {
-              const Icon = item.icon;
-              return (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.3 + i * 0.1, duration: 0.5 }}
-                  whileHover={!isOldPhone ? { y: -10 } : {}}
-                  className={`rounded-xl transition-all duration-300 ${
-                    isOldPhone
-                      ? 'bg-white p-4 border border-gray-200'
-                      : 'bg-white p-6 md:p-8 shadow-md hover:shadow-xl border border-gray-100'
-                  }`}
-                >
-                  <div className={`p-3 rounded-lg inline-block mb-4 ${
-                    isOldPhone
-                      ? 'bg-indigo-100'
-                      : `bg-gradient-to-br ${item.color} mb-6`
-                  }`}>
-                    <Icon className={`h-6 w-6 ${
-                      isOldPhone ? 'text-indigo-600' : 'text-white'
-                    }`} />
+          <h2 style={{ 
+            fontSize: '2.25rem',
+            fontWeight: 'bold',
+            marginBottom: '16px'
+          }}>
+            Transforming Digital Experiences
+          </h2>
+          
+          <p style={{ 
+            fontSize: '1.125rem',
+            color: '#64748b',
+            maxWidth: '600px',
+            margin: '0 auto'
+          }}>
+            Each website we create is a strategic asset engineered to achieve specific business objectives
+          </p>
+        </div>
+
+        <div style={{ 
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+          gap: '32px'
+        }}>
+          {featuredSites.map((site) => {
+            const imageUrl = previewImages[site.id] || '/placeholder-site.jpg';
+            const loading = uploadingId === site.id;
+
+            return (
+              <div key={site.id} style={{ 
+                backgroundColor: 'white',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
+                border: '1px solid #e2e8f0',
+                position: 'relative'
+              }}>
+                <div style={{ height: '256px', position: 'relative' }}>
+                  <Image
+                    src={imageUrl}
+                    alt={`${site.title} website preview`}
+                    fill
+                    style={{ objectFit: 'cover' }}
+                    priority={false}
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    placeholder="blur"
+                    blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI2Y4ZjlmYSIvPjwvc3ZnPg=="
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/placeholder-site.jpg';
+                    }}
+                  />
+                  
+                  {/* Category badge */}
+                  <div style={{ 
+                    position: 'absolute',
+                    top: '16px',
+                    left: '16px',
+                    backgroundColor: '#4f46e5',
+                    backgroundImage: 'linear-gradient(to right, #4f46e5, #7c3aed)',
+                    color: 'white',
+                    padding: '4px 12px',
+                    borderRadius: '9999px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    zIndex: 10
+                  }}>
+                    {site.categoryName}
                   </div>
-                  <h3 className={`font-bold mb-2 ${
-                    isOldPhone ? 'text-lg' : 'text-xl md:text-2xl text-gray-900'
-                  }`}>{item.title}</h3>
-                  <p className={`text-gray-600 ${
-                    isOldPhone ? 'text-sm' : 'leading-relaxed'
-                  }`}>{item.desc}</p>
-                </motion.div>
-              );
-            })}
+                </div>
+
+                <div style={{ padding: '24px' }}>
+                  <h3 style={{ 
+                    fontSize: '1.5rem',
+                    fontWeight: 'bold',
+                    marginBottom: '8px',
+                    color: '#1e293b'
+                  }}>
+                    {site.title}
+                  </h3>
+                  
+                  <p style={{ 
+                    color: '#475569',
+                    marginBottom: '20px',
+                    minHeight: '60px'
+                  }}>
+                    {site.prompt}
+                  </p>
+                  
+                  <div style={{ 
+                    paddingTop: '16px',
+                    borderTop: '1px solid #e2e8f0'
+                  }}>
+                    <Link
+                      href={`/websites/${site.id}`}
+                      style={{ 
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        color: '#4f46e5',
+                        fontWeight: '500',
+                        textDecoration: 'none'
+                      }}
+                    >
+                      <span>View Case Study</span>
+                      <span style={{ marginLeft: '6px' }}>→</span>
+                    </Link>
+                  </div>
+                </div>
+
+                {adminMode && (
+                  <div style={{ 
+                    position: 'absolute',
+                    bottom: '0',
+                    left: '0',
+                    right: '0',
+                    backgroundColor: '#f0f9ff',
+                    padding: '12px',
+                    borderTop: '1px solid #bae6fd'
+                  }}>
+                    <label style={{ 
+                      display: 'block',
+                      textAlign: 'center' as const,
+                      cursor: 'pointer',
+                      color: '#1e40af',
+                      fontWeight: '500'
+                    }}>
+                      {loading ? (
+                        <span>Uploading...</span>
+                      ) : (
+                        <>
+                          <UploadIcon />
+                          <span style={{ marginLeft: '6px' }}>Update Preview</span>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleUpload(e, site.id)}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ 
+          textAlign: 'center', 
+          marginTop: '48px'
+        }}>
+          <Link
+            href="/websites"
+            style={{ 
+              display: 'inline-block',
+              backgroundColor: '#4f46e5',
+              backgroundImage: 'linear-gradient(to right, #4f46e5, #7c3aed)',
+              color: 'white',
+              padding: '14px 32px',
+              borderRadius: '12px',
+              fontWeight: 'bold',
+              textDecoration: 'none',
+              boxShadow: '0 4px 6px rgba(79, 70, 229, 0.3)'
+            }}
+          >
+            Explore All {websites.length} Projects
+          </Link>
+        </div>
+      </div>
+
+      {/* Value Proposition Section */}
+      <div style={{ 
+        backgroundColor: '#f1f5f9',
+        padding: '60px 20px',
+        borderTop: '1px solid #e2e8f0',
+        borderBottom: '1px solid #e2e8f0'
+      }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '48px' }}>
+            <div style={{ 
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: '#f0f9ff',
+              color: '#7e3af2',
+              borderRadius: '9999px',
+              padding: '8px 24px',
+              marginBottom: '16px'
+            }}>
+              ⚡
+              <span style={{ marginLeft: '8px', fontWeight: '500' }}>Our Process</span>
+            </div>
+            
+            <h2 style={{ 
+              fontSize: '2.25rem',
+              fontWeight: 'bold',
+              marginBottom: '16px'
+            }}>
+              The WhyNoWebsite Methodology
+            </h2>
+            
+            <p style={{ 
+              fontSize: '1.125rem',
+              color: '#64748b',
+              maxWidth: '600px',
+              margin: '0 auto'
+            }}>
+              We blend strategic thinking with technical excellence to deliver websites that drive measurable business results
+            </p>
           </div>
           
-          {/* Client Benefits Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-12 md:mb-20 max-w-4xl mx-auto">
+          <div style={{ 
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: '24px',
+            marginBottom: '48px'
+          }}>
+            {[{
+              icon: '🎯',
+              title: "Strategic Discovery",
+              desc: "Deep business analysis to understand your unique challenges and align digital strategy with core objectives."
+            },
+            {
+              icon: '🚀',
+              title: "Precision Execution",
+              desc: "Meticulous design and development focusing on performance, user experience, and conversion optimization."
+            },
+            {
+              icon: '📈',
+              title: "Growth Partnership",
+              desc: "Ongoing optimization and strategic guidance to ensure your digital presence evolves with your business."
+            }].map((item, i) => (
+              <div key={i} style={{ 
+                backgroundColor: 'white',
+                padding: '32px',
+                borderRadius: '12px',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                border: '1px solid #e2e8f0'
+              }}>
+                <div style={{ 
+                  fontSize: '2rem',
+                  marginBottom: '16px'
+                }}>
+                  {item.icon}
+                </div>
+                <h3 style={{ 
+                  fontSize: '1.5rem',
+                  fontWeight: 'bold',
+                  marginBottom: '12px',
+                  color: '#1e293b'
+                }}>
+                  {item.title}
+                </h3>
+                <p style={{ color: '#475569' }}>
+                  {item.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+          
+          <div style={{ 
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: '16px',
+            maxWidth: '800px',
+            margin: '0 auto 48px'
+          }}>
             {[{
               title: "95%+ Client Satisfaction",
               desc: "Our commitment to quality and communication ensures exceptional results."
@@ -815,183 +652,196 @@ export default function HomePage() {
               title: "Strategic Growth Focus",
               desc: "We build websites that scale with your business and drive real ROI."
             }].map((benefit, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, x: i % 2 === 0 ? -20 : 20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: 0.6 + i * 0.1, duration: 0.4 }}
-                className={`flex items-start p-4 rounded-lg ${
-                  i % 2 === 0 
-                    ? (isOldPhone ? 'bg-indigo-50' : 'bg-gradient-to-br from-indigo-50 to-purple-50') 
-                    : (isOldPhone ? 'bg-purple-50' : 'bg-gradient-to-br from-purple-50 to-pink-50')
-                }`}
-              >
-                <div className="flex-shrink-0 mr-3 mt-0.5">
-                  <CheckCircle className={`h-5 w-5 ${
-                    isOldPhone ? 'text-indigo-600' : 'text-indigo-600'
-                  }`} />
+              <div key={i} style={{ 
+                display: 'flex',
+                padding: '20px',
+                borderRadius: '12px',
+                backgroundColor: i % 2 === 0 ? '#f0f9ff' : '#fdf4ff',
+                border: '1px solid #bae6fd'
+              }}>
+                <div style={{ 
+                  fontSize: '1.5rem',
+                  marginRight: '12px',
+                  color: '#1e40af'
+                }}>
+                  ✓
                 </div>
                 <div>
-                  <h4 className={`font-bold mb-1 ${
-                    isOldPhone ? 'text-base' : 'text-lg md:text-xl text-gray-900'
-                  }`}>{benefit.title}</h4>
-                  <p className={`text-gray-600 ${
-                    isOldPhone ? 'text-xs' : ''
-                  }`}>{benefit.desc}</p>
+                  <h4 style={{ 
+                    fontWeight: 'bold',
+                    marginBottom: '4px',
+                    color: '#0f172a'
+                  }}>
+                    {benefit.title}
+                  </h4>
+                  <p style={{ color: '#334155' }}>{benefit.desc}</p>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
           
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.8, duration: 0.6 }}
-            className="text-center max-w-3xl mx-auto"
-          >
-            <motion.div
-              whileHover={!isOldPhone ? { scale: 1.02 } : {}}
-              whileTap={!isOldPhone ? { scale: 0.98 } : {}}
+          <div style={{ 
+            textAlign: 'center', 
+            maxWidth: '600px', 
+            margin: '0 auto'
+          }}>
+            <Link
+              href="/get-started"
+              style={{ 
+                display: 'inline-block',
+                backgroundColor: '#fbbf24',
+                color: '#1e293b',
+                padding: '16px 48px',
+                borderRadius: '12px',
+                fontWeight: 'bold',
+                fontSize: '1.125rem',
+                textDecoration: 'none',
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                margin: '10px'
+              }}
             >
-              <Link
-                href="/get-started"
-                className={`inline-flex items-center justify-center px-6 py-3 font-bold rounded-lg transition-all duration-300 ${
-                  isOldPhone
-                    ? 'bg-yellow-400 text-gray-900 shadow-md'
-                    : 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 shadow-2xl hover:shadow-3xl group'
-                }`}
-              >
-                <span className="text-sm md:text-base">Let Us Create Your Website</span>
-                <ArrowRight className={`ml-2 h-4 w-4 md:ml-3 md:h-6 md:w-6 ${
-                  !isOldPhone && 'group-hover:translate-x-1 transition-transform duration-300'
-                }`} />
-              </Link>
-            </motion.div>
-            <p className={`mt-4 text-gray-600 ${
-              isOldPhone ? 'text-xs' : 'text-lg'
-            }`}>
+              Let Us Create Your Website
+            </Link>
+            <p style={{ 
+              marginTop: '16px',
+              color: '#475569'
+            }}>
               Ready to transform your digital presence? Get started today and we'll create a website that drives real business results.
             </p>
-          </motion.div>
-          
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.9, duration: 0.5 }}
-            className="text-center mt-6 md:mt-8"
-          >
-            <Link
-              href="/contact"
-              className={`inline-flex items-center font-medium transition-colors duration-300 ${
-                isOldPhone
-                  ? 'text-indigo-600 hover:text-indigo-800'
-                  : 'text-indigo-600 hover:text-indigo-800'
-              }`}
-            >
-              <MessageCircle className={`h-4 w-4 mr-1.5 ${
-                isOldPhone ? 'h-4 w-4' : 'h-5 w-5 mr-2'
-              }`} />
-              <span className={`text-xs md:text-base ${
-                isOldPhone ? 'text-sm' : ''
-              }`}>Have questions first? Get in touch</span>
-            </Link>
-          </motion.div>
-        </div>
-      </div>
-
-      {/* CTA Section - Focused on Website Creation */}
-      <div className={`py-12 md:py-20 ${
-        isOldPhone
-          ? 'bg-indigo-900'
-          : 'bg-gradient-to-br from-indigo-900 to-purple-900'
-      }`}>
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <span className={`font-medium text-xs md:text-sm tracking-wide uppercase mb-3 block ${
-              isOldPhone ? 'text-indigo-200/80' : 'text-indigo-200'
-            }`}>
-              Ready to transform your digital presence?
-            </span>
-            <h2 className={`font-bold mb-4 ${
-              isOldPhone
-                ? 'text-2xl md:text-3xl text-white'
-                : 'text-3xl md:text-4xl lg:text-5xl text-white'
-            }`}>
-              Your <span className="text-yellow-300">Website Awaits</span>
-            </h2>
-            <p className={`mb-8 md:mb-10 ${
-              isOldPhone
-                ? 'text-sm text-indigo-100/80'
-                : 'text-lg md:text-xl text-indigo-100/90 leading-relaxed max-w-2xl mx-auto'
-            }`}>
-              Fill out our simple form and we'll create a custom website proposal tailored to your business goals. We respond within 24 hours to get your project started.
-            </p>
             
-            <motion.div
-              whileHover={!isOldPhone ? { scale: 1.05 } : {}}
-              whileTap={!isOldPhone ? { scale: 0.95 } : {}}
-              className="flex flex-col sm:flex-row justify-center gap-3 md:gap-4 items-center"
-            >
-              <Link
-                href="/get-started"
-                className={`inline-flex items-center px-6 py-3 font-bold rounded-lg transition-all duration-300 ${
-                  isOldPhone
-                    ? 'bg-yellow-400 text-gray-900 shadow-md'
-                    : 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 shadow-2xl hover:shadow-3xl group'
-                }`}
-              >
-                <span className="text-sm md:text-base">Get Started Now</span>
-                <ArrowRight className={`ml-2 h-4 w-4 md:ml-3 md:h-6 md:w-6 ${
-                  !isOldPhone && 'group-hover:translate-x-1 transition-transform duration-300'
-                }`} />
-              </Link>
-              
+            <div style={{ marginTop: '24px' }}>
               <Link
                 href="/contact"
-                className={`inline-flex items-center px-6 py-3 font-semibold rounded-lg transition-all duration-300 ${
-                  isOldPhone
-                    ? 'bg-white/10 text-white border border-white/50'
-                    : 'bg-transparent border-2 border-white/80 text-white hover:bg-white/10 backdrop-blur-sm'
-                }`}
+                style={{ 
+                  color: '#4f46e5',
+                  fontWeight: '500',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
               >
-                <Mail className={`h-4 w-4 mr-1.5 ${
-                  isOldPhone ? 'h-4 w-4 mr-2' : 'h-5 w-5 mr-2'
-                }`} />
-                <span className="text-sm md:text-base">Contact Us</span>
+                <MessageCircleIcon />
+                <span style={{ marginLeft: '8px' }}>Have questions first? Get in touch</span>
               </Link>
-            </motion.div>
-            
-            <p className={`mt-6 text-indigo-200/80 ${
-              isOldPhone ? 'text-xs' : 'text-base'
-            }`}>
-              Not ready to start a project? We're happy to answer your questions and provide guidance.
-            </p>
-          </motion.div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Admin mode indicator - Elegant */}
-      <AnimatePresence>
-        {adminMode && !isOldPhone && (
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-6 right-6 bg-gradient-to-r from-indigo-600 to-purple-700 text-white px-4 py-2 rounded-xl shadow-lg text-xs md:text-sm font-medium z-50 flex items-center gap-1.5 backdrop-blur-sm md:bottom-8 md:right-8 md:px-6 md:py-3"
-          >
-            <Shield className="h-3 w-3 md:h-4 md:w-4" />
-            <span>Admin Mode Active</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* CTA Section */}
+      <div style={{ 
+        backgroundColor: '#4f46e5',
+        backgroundImage: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+        color: 'white',
+        padding: '60px 20px',
+        textAlign: 'center' as const
+      }}>
+        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+          <div style={{ 
+            textTransform: 'uppercase' as const,
+            letterSpacing: '0.05em',
+            fontWeight: '500',
+            marginBottom: '16px',
+            color: 'rgba(255, 255, 255, 0.8)'
+          }}>
+            Ready to transform your digital presence?
+          </div>
+          
+          <h2 style={{ 
+            fontSize: '2.25rem',
+            fontWeight: 'bold',
+            marginBottom: '16px',
+            lineHeight: 1.2
+          }}>
+            Your <span style={{ color: '#fbbf24' }}>Website Awaits</span>
+          </h2>
+          
+          <p style={{ 
+            fontSize: '1.125rem',
+            opacity: 0.9,
+            marginBottom: '32px'
+          }}>
+            Fill out our simple form and we'll create a custom website proposal tailored to your business goals
+          </p>
+          
+          <div style={{ 
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '16px',
+            maxWidth: '500px',
+            margin: '0 auto'
+          }}>
+            <Link 
+              href="/get-started"
+              style={{ 
+                display: 'block',
+                width: '100%',
+                backgroundColor: '#fbbf24',
+                color: '#1e293b',
+                padding: '16px 32px',
+                borderRadius: '12px',
+                fontWeight: 'bold',
+                textDecoration: 'none',
+                fontSize: '1.125rem',
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.2)'
+              }}
+            >
+              Get Started Now
+            </Link>
+            
+            <Link 
+              href="/contact"
+              style={{ 
+                display: 'block',
+                width: '100%',
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                backdropFilter: 'blur(4px)',
+                WebkitBackdropFilter: 'blur(4px)',
+                color: 'white',
+                padding: '14px 32px',
+                borderRadius: '12px',
+                fontWeight: '500',
+                textDecoration: 'none',
+                border: '1px solid rgba(255, 255, 255, 0.3)'
+              }}
+            >
+              <MailIcon />
+              <span style={{ marginLeft: '8px' }}>Contact Us</span>
+            </Link>
+          </div>
+          
+          <p style={{ 
+            marginTop: '24px',
+            opacity: 0.8,
+            fontSize: '0.95rem'
+          }}>
+            Not ready to start a project? We're happy to answer your questions and provide guidance.
+          </p>
+        </div>
+      </div>
+
+      {/* Admin mode indicator */}
+      {adminMode && (
+        <div style={{ 
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          backgroundColor: '#4f46e5',
+          backgroundImage: 'linear-gradient(to right, #4f46e5, #7c3aed)',
+          color: 'white',
+          padding: '12px 24px',
+          borderRadius: '12px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+          zIndex: 50,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <ShieldIcon />
+          <span>Admin Mode Active</span>
+        </div>
+      )}
     </div>
   );
 }
