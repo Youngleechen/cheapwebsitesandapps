@@ -1,4 +1,3 @@
-// app/api/websites/route.ts
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
@@ -23,8 +22,16 @@ export const CATEGORY_LABELS: Record<string, string> = {
   saas: '🚀 Startup / SaaS / Tech',
 };
 
-export async function GET() {
+// Helper to normalize category keys (kebab-case)
+function normalizeCategoryKey(key: string): string {
+  return key.toLowerCase().replace(/\s+/g, '-');
+}
+
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const categoryFilter = searchParams.get('category');
+    
     const websitesDir = path.join(process.cwd(), 'app', 'websites');
 
     if (!fs.existsSync(websitesDir)) {
@@ -49,6 +56,12 @@ export async function GET() {
     }[] = [];
 
     for (const categoryFolder of topLevelFolders) {
+      // Apply category filter if provided
+      const normalizedCategoryKey = normalizeCategoryKey(categoryFolder);
+      if (categoryFilter && normalizedCategoryKey !== normalizeCategoryKey(categoryFilter)) {
+        continue;
+      }
+
       const categoryPath = path.join(websitesDir, categoryFolder);
       const items = fs.readdirSync(categoryPath).filter((file) => {
         const itemPath = path.join(categoryPath, file);
