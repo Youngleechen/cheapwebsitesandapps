@@ -9,7 +9,8 @@ import {
   AnimatePresence, 
   useScroll, 
   useTransform,
-  useReducedMotion // New hook for accessibility
+  useReducedMotion,
+  Transition
 } from 'framer-motion';
 import { 
   ArrowRight, 
@@ -74,6 +75,11 @@ export default function HomePage() {
     return typeof window !== 'undefined' && 
            CSS.supports('clip-path', 'polygon(0 0, 100% 0, 100% 100%, 0 100%)');
   }, []);
+
+  // Motion configuration type
+  const baseTransition: Transition = {
+    duration: prefersReducedMotion ? 0 : 0.5
+  };
 
   // Fetch websites with robust error handling
   useEffect(() => {
@@ -168,16 +174,15 @@ export default function HomePage() {
         const updatedState: Record<string, string | null> = { ...initialState };
         for (const site of websites) {
           if (latestImagePerSite[site.id]) {
-            const { data: publicUrlData, error: urlError } = supabase.storage
-              .from('user_images')
-              .getPublicUrl(latestImagePerSite[site.id]);
-              
-            if (urlError) {
-              console.error('URL generation failed for', site.id, urlError);
-              continue;
+            try {
+              const publicUrl = supabase.storage
+                .from('user_images')
+                .getPublicUrl(latestImagePerSite[site.id])
+                .data.publicUrl;
+              updatedState[site.id] = publicUrl;
+            } catch (err) {
+              console.error('URL generation failed for', site.id, err);
             }
-            
-            updatedState[site.id] = publicUrlData.publicUrl;
           }
         }
         
@@ -234,13 +239,12 @@ export default function HomePage() {
         
       if (dbErr) throw dbErr;
 
-      const { data: publicUrlData, error: urlErr } = supabase.storage
+      const publicUrl = supabase.storage
         .from('user_images')
-        .getPublicUrl(filePath);
-        
-      if (urlErr) throw urlErr;
+        .getPublicUrl(filePath)
+        .data.publicUrl;
 
-      setPreviewImages(prev => ({ ...prev, [siteId]: publicUrlData.publicUrl }));
+      setPreviewImages(prev => ({ ...prev, [siteId]: publicUrl }));
     } catch (err) {
       console.error('Upload failed:', err);
       alert('Image upload failed. Please try again.');
@@ -303,14 +307,6 @@ export default function HomePage() {
     );
   }
 
-  // Motion configuration with reduced motion support
-  const motionConfig = {
-    transition: {
-      duration: prefersReducedMotion ? 0 : 0.5,
-      ease: "easeOut"
-    }
-  };
-
   return (
     <div className={`min-h-screen ${
       supportsCSSGradients ? 'bg-gradient-to-b from-gray-50 to-gray-100' : 'bg-gray-50'
@@ -345,13 +341,13 @@ export default function HomePage() {
           <motion.div 
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            {...motionConfig}
+            transition={baseTransition}
             className="text-center max-w-4xl mx-auto"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ ...motionConfig.transition, delay: 0.2 }}
+              transition={{ ...baseTransition, delay: 0.2 }}
               className={`inline-flex items-center px-4 py-2 rounded-full mb-6 border ${
                 supportsBackdropFilter
                   ? 'bg-white/10 backdrop-blur-sm border-white/20'
@@ -367,7 +363,7 @@ export default function HomePage() {
             <motion.h1 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ ...motionConfig.transition, delay: 0.3 }}
+              transition={{ ...baseTransition, delay: 0.3 }}
               className="text-4xl md:text-5xl lg:text-6xl font-bold text-white tracking-tight mb-6 leading-tight"
             >
               Digital Excellence, <span className="text-yellow-300">Engineered</span>
@@ -376,7 +372,7 @@ export default function HomePage() {
             <motion.p 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ ...motionConfig.transition, delay: 0.4 }}
+              transition={{ ...baseTransition, delay: 0.4 }}
               className="text-base md:text-lg text-indigo-100/90 mb-8 max-w-3xl mx-auto leading-relaxed"
             >
               We craft high-performance websites that transform digital presence into measurable business growth—combining strategic insight with technical mastery.
@@ -385,7 +381,7 @@ export default function HomePage() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ ...motionConfig.transition, delay: 0.5 }}
+              transition={{ ...baseTransition, delay: 0.5 }}
               className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4"
             >
               <Link
@@ -425,7 +421,7 @@ export default function HomePage() {
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ ...motionConfig.transition, delay: 0.7 }}
+              transition={{ ...baseTransition, delay: 0.7 }}
               className="mt-8"
             >
               <Link
@@ -442,7 +438,7 @@ export default function HomePage() {
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ ...motionConfig.transition, delay: 0.7 }}
+            transition={{ ...baseTransition, delay: 0.7 }}
             className="mt-16 hidden md:block"
           >
             <div className="grid grid-cols-3 gap-4 sm:gap-6">
@@ -453,7 +449,7 @@ export default function HomePage() {
                     key={index}
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ ...motionConfig.transition, delay: 0.8 + index * 0.1 }}
+                    transition={{ ...baseTransition, delay: 0.8 + index * 0.1 }}
                     whileHover={{ 
                       y: !prefersReducedMotion ? -8 : 0, 
                       scale: !prefersReducedMotion ? 1.02 : 1 
