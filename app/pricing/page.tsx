@@ -381,7 +381,7 @@ export default function PricingPage() {
               Ready to Launch Your Website?
             </h2>
             <p className="text-lg text-indigo-100/90 mb-8 max-w-xl mx-auto">
-              Get started today — your first step takes less than 2 minutes.
+              Get started today — your first step takes less than 3 minutes.
             </p>
             
             <motion.div
