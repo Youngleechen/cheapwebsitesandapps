@@ -148,7 +148,7 @@ export default function PricingPage() {
             >
               <Zap className="h-4 w-4 text-yellow-300 mr-2" />
               <span className="text-indigo-200 font-medium text-sm">
-                Live in 48 Hours — Starting at $69
+                Live in 48 Hours — Starting at $50
               </span>
             </motion.div>
             
@@ -158,7 +158,7 @@ export default function PricingPage() {
               transition={{ delay: 0.3, duration: 0.6 }}
               className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-6 leading-tight"
             >
-              Real Websites. <span className="text-yellow-300">From Just $69.</span>
+              Real Websites. <span className="text-yellow-300">From Just $50.</span>
             </motion.h1>
             
             <motion.p 
@@ -392,7 +392,7 @@ export default function PricingPage() {
                 href="/get-started"
                 className="inline-flex items-center px-10 py-4 bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 font-bold text-lg rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 group"
               >
-                <span>Start Your Site Now — Only $69</span>
+                <span>Start Your Site Now — Only $50</span>
                 <ArrowRight className="ml-3 h-5 w-5 group-hover:translate-x-1 transition-transform duration-300" />
               </Link>
             </motion.div>

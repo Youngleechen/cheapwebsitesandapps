@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@supabase/supabase-js';
-import { Palette, Sparkles, CheckCircle, ArrowDownToLine, Instagram, Twitter, Facebook, Copy, Upload } from 'lucide-react';
-import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { Phone, Clock, Calendar, Upload, Copy, Check } from 'lucide-react';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,41 +11,25 @@ const supabase = createClient(
 );
 
 const ADMIN_USER_ID = '680c0a2e-e92d-4c59-a2b8-3e0eed2513da';
-const POSTER_PREFIX = 'posters'; // Dedicated bucket prefix
+const POSTER_PREFIX = 'web_poster';
 
-const POSTER_TEMPLATES = [
-  {
-    id: 'promo-launch',
-    name: 'Product Launch',
-    description: 'Bold, eye-catching promo for new products or features',
-    aspect: { platform: 'Instagram', ratio: '1:1', w: 1080, h: 1080 },
-    prompt: 'Minimalist yet vibrant social media poster for a tech product launch. Clean typography, gradient background (electric blue to purple), abstract geometric shapes, negative space for logo placement. Modern, premium feel.'
-  },
-  {
-    id: 'event-announcement',
-    name: 'Event Announcement',
-    description: 'Dynamic poster for webinars, sales, or events',
-    aspect: { platform: 'Facebook', ratio: '1.91:1', w: 1200, h: 628 },
-    prompt: 'Energetic event announcement poster with confetti elements, bold headline font, and warm sunset colors (orange, coral, gold). Include a subtle stage silhouette and clear date/time zone. Festive but professional.'
-  },
-  {
-    id: 'brand-story',
-    name: 'Brand Story',
-    description: 'Emotional, narrative-driven poster for brand awareness',
-    aspect: { platform: 'Twitter', ratio: '16:9', w: 1200, h: 675 },
-    prompt: 'Moody, cinematic poster conveying brand authenticity. Soft focus background of a person working passionately in a cozy studio, warm lighting, shallow depth of field. Overlay subtle texture and elegant serif font for tagline.'
-  }
-];
-
-type PosterState = { [key: string]: { image_url: string | null } };
-
-export default function PosterGeneratorPage() {
-  const [posters, setPosters] = useState<PosterState>({});
+export default function WebDesignPoster() {
   const [userId, setUserId] = useState<string | null>(null);
   const [adminMode, setAdminMode] = useState(false);
-  const [uploading, setUploading] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [title, setTitle] = useState('Whynowebsite');
+  const [headline, setHeadline] = useState('PROFESSIONAL WEBSITES');
+  const [subHeadline, setSubHeadline] = useState('FOR ENTREPRENEURS & CREATIVES!');
+  const [feature1, setFeature1] = useState('5-page website live in 48 hours — just $69');
+  const [feature2, setFeature2] = useState('No monthly fees. No tech skills needed.');
+  const [cta, setCta] = useState('GET YOUR WEBSITE NOW');
+  const [prompt, setPrompt] = useState(
+    'A bold, modern social media ad for a web design service. Vibrant blue-to-indigo gradient background, clean layout, confident model holding a laptop showing a live website, yellow accent highlights, sharp typography, 1080x1350 vertical ad format.'
+  );
+  const [uploading, setUploading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
+  // Check admin
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -57,260 +40,222 @@ export default function PosterGeneratorPage() {
     checkUser();
   }, []);
 
+  // Load latest poster image
   useEffect(() => {
-    const loadPosters = async () => {
-      const initialState: PosterState = {};
-      POSTER_TEMPLATES.forEach(template => initialState[template.id] = { image_url: null });
-
-      if (!adminMode) {
-        setPosters(initialState);
-        return;
-      }
-
-      const { data: images, error } = await supabase
+    if (!adminMode) return;
+    const loadImage = async () => {
+      const { data: images } = await supabase
         .from('images')
-        .select('path, created_at')
+        .select('path')
         .eq('user_id', ADMIN_USER_ID)
         .like('path', `${ADMIN_USER_ID}/${POSTER_PREFIX}/%`)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      if (error) {
-        console.error('Error loading posters:', error);
-        setPosters(initialState);
-        return;
+      if (images?.[0]) {
+        const url = supabase.storage
+          .from('user_images')
+          .getPublicUrl(images[0].path).data.publicUrl;
+        setImageUrl(url);
       }
-
-      const latestImagePerTemplate: Record<string, string> = {};
-      for (const img of images) {
-        const pathParts = img.path.split('/');
-        if (pathParts.length >= 4 && pathParts[1] === POSTER_PREFIX) {
-          const templateId = pathParts[2];
-          if (POSTER_TEMPLATES.some(t => t.id === templateId) && !latestImagePerTemplate[templateId]) {
-            latestImagePerTemplate[templateId] = img.path;
-          }
-        }
-      }
-
-      POSTER_TEMPLATES.forEach(template => {
-        if (latestImagePerTemplate[template.id]) {
-          const url = supabase.storage
-            .from('user_images')
-            .getPublicUrl(latestImagePerTemplate[template.id]).data.publicUrl;
-          initialState[template.id] = { image_url: url };
-        }
-      });
-
-      setPosters(initialState);
     };
-
-    loadPosters();
+    loadImage();
   }, [adminMode]);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, templateId: string) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!adminMode) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setUploading(templateId);
+    setUploading(true);
     try {
-      const folderPath = `${ADMIN_USER_ID}/${POSTER_PREFIX}/${templateId}/`;
-
-      // Clean old uploads
-      const { data: existing } = await supabase
+      // Clean old poster images
+      const { data: oldImages } = await supabase
         .from('images')
         .select('path')
         .eq('user_id', ADMIN_USER_ID)
-        .like('path', `${folderPath}%`);
+        .like('path', `${ADMIN_USER_ID}/${POSTER_PREFIX}/%`);
 
-      if (existing?.length) {
-        const paths = existing.map(img => img.path);
-        await Promise.all([
-          supabase.storage.from('user_images').remove(paths),
-          supabase.from('images').delete().in('path', paths)
-        ]);
+      if (oldImages?.length) {
+        const paths = oldImages.map(img => img.path);
+        await supabase.storage.from('user_images').remove(paths);
+        await supabase.from('images').delete().in('path', paths);
       }
 
-      // Upload new
-      const filePath = `${folderPath}${Date.now()}_${file.name}`;
-      const { error: uploadErr } = await supabase.storage
-        .from('user_images')
-        .upload(filePath, file, { upsert: true });
-      if (uploadErr) throw uploadErr;
-
-      const { error: dbErr } = await supabase
-        .from('images')
-        .insert({ user_id: ADMIN_USER_ID, path: filePath });
-      if (dbErr) throw dbErr;
-
-      const publicUrl = supabase.storage.from('user_images').getPublicUrl(filePath).data.publicUrl;
-      setPosters(prev => ({ ...prev, [templateId]: { image_url: publicUrl } }));
+      const path = `${ADMIN_USER_ID}/${POSTER_PREFIX}/${Date.now()}_${file.name}`;
+      await supabase.storage.from('user_images').upload(path, file, { upsert: true });
+      await supabase.from('images').insert({ user_id: ADMIN_USER_ID, path });
+      const publicUrl = supabase.storage.from('user_images').getPublicUrl(path).data.publicUrl;
+      setImageUrl(publicUrl);
     } catch (err) {
       console.error('Upload failed:', err);
-      alert('Failed to upload poster. Please try again.');
+      alert('Image upload failed.');
     } finally {
-      setUploading(null);
+      setUploading(false);
       e.target.value = '';
     }
   };
 
-  const copyPrompt = (prompt: string, templateId: string) => {
-    navigator.clipboard.writeText(prompt).then(() => {
-      setCopiedId(templateId);
-      setTimeout(() => setCopiedId(null), 2000);
-    });
-  };
-
-  const getPlatformIcon = (platform: string) => {
-    switch (platform.toLowerCase()) {
-      case 'instagram': return <Instagram className="h-4 w-4" />;
-      case 'twitter': return <Twitter className="h-4 w-4" />;
-      case 'facebook': return <Facebook className="h-4 w-4" />;
-      default: return <Sparkles className="h-4 w-4" />;
-    }
+  const copyPrompt = () => {
+    navigator.clipboard.writeText(prompt);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-indigo-950 to-purple-900 text-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-16"
-        >
-          <div className="inline-flex items-center px-4 py-2 bg-indigo-500/20 rounded-full mb-4 border border-indigo-500/30">
-            <Palette className="h-4 w-4 mr-2 text-yellow-300" />
-            <span className="text-indigo-200 text-sm font-medium">AI-Powered Poster Studio</span>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 overflow-hidden">
+      {/* Main Poster Container — Full viewport for easy screenshot */}
+      <div className="relative w-full h-screen flex items-center justify-center p-4 md:p-8">
+        {/* Background */}
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-700 opacity-90"></div>
+
+        {/* Decorative Shapes */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-400 rounded-full -translate-y-1/2 translate-x-1/2 opacity-30"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-white rounded-full -translate-y-1/2 -translate-x-1/2 opacity-20"></div>
+
+        {/* Content */}
+        <div className="relative z-10 max-w-6xl w-full h-full flex flex-col md:flex-row items-center justify-between gap-8 px-4 py-8">
+          
+          {/* LEFT: Text Content */}
+          <div className="w-full md:w-1/2 space-y-6 text-white">
+            {/* Brand Title */}
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{title}</h1>
+
+            {/* Main Headline */}
+            <div className="space-y-2">
+              <span className="text-yellow-300 text-xl md:text-2xl font-extrabold">FOR</span>
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-black leading-tight">
+                {headline}
+              </h2>
+              <h3 className="text-2xl md:text-3xl font-bold text-yellow-200">{subHeadline}</h3>
+            </div>
+
+            {/* Features */}
+            <div className="space-y-4 mt-6">
+              <div className="flex items-start gap-3">
+                <div className="bg-yellow-300 text-blue-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">»</div>
+                <p className="text-lg">{feature1}</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="bg-yellow-300 text-blue-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">»</div>
+                <p className="text-lg">{feature2}</p>
+              </div>
+            </div>
+
+            {/* Operational Badge */}
+            <div className="flex items-center gap-3 mt-8">
+              <div className="flex items-center gap-2">
+                <Clock className="w-6 h-6" />
+                <Calendar className="w-6 h-6" />
+              </div>
+              <span className="text-xl font-semibold">GO LIVE IN 48 HOURS</span>
+            </div>
+
+            {/* CTA Button */}
+            <div className="mt-8">
+              <button className="bg-yellow-400 hover:bg-yellow-500 text-blue-800 font-bold py-3 px-8 rounded-full text-lg transition-all duration-300 transform hover:scale-105 shadow-lg">
+                {cta}
+              </button>
+            </div>
+
+            {/* Contact */}
+            <div className="flex items-center gap-3 mt-6">
+              <Phone className="w-5 h-5" />
+              <span className="text-xl font-semibold">0757248296</span>
+            </div>
+
+            {/* Decorative Dots */}
+            <div className="flex gap-1 mt-4">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="w-2 h-2 bg-white rounded-full"></div>
+              ))}
+            </div>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-yellow-200 mb-4">
-            Create Scroll-Stopping <span className="text-yellow-300">Social Ads</span>
-          </h1>
-          <p className="text-lg text-indigo-200 max-w-2xl mx-auto">
-            Generate stunning, on-brand posters for Instagram, Facebook & Twitter — in minutes.
-          </p>
-        </motion.div>
 
-        {/* Poster Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {POSTER_TEMPLATES.map((template, idx) => {
-            const posterData = posters[template.id] || { image_url: null };
-            const imageUrl = posterData.image_url;
-
-            return (
-              <motion.div
-                key={template.id}
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.1 }}
-                className="bg-gray-800/50 backdrop-blur-sm rounded-2xl overflow-hidden border border-gray-700 hover:border-indigo-500/50 transition-all"
-              >
-                {/* Preview */}
-                <div className="relative">
-                  {imageUrl ? (
-                    <img
-                      src={imageUrl}
-                      alt={template.name}
-                      className="w-full aspect-square object-cover"
-                      onError={(e) => (e.target as HTMLImageElement).src = '/placeholder-poster.jpg'}
-                    />
-                  ) : (
-                    <div className="w-full h-64 bg-gradient-to-br from-gray-800 to-indigo-900 flex items-center justify-center">
-                      <Sparkles className="h-10 w-10 text-indigo-400" />
-                    </div>
-                  )}
-
-                  {/* Aspect Badge */}
-                  <div className="absolute top-3 right-3 flex items-center gap-1 bg-black/60 px-2 py-1 rounded-full text-xs">
-                    {getPlatformIcon(template.aspect.platform)}
-                    <span>{template.aspect.ratio}</span>
+          {/* RIGHT: Image */}
+          <div className="w-full md:w-1/2 flex justify-center">
+            <div className="relative">
+              <div className="relative w-full max-w-md h-[500px] md:h-[600px] overflow-hidden rounded-2xl border-4 border-purple-400 shadow-2xl">
+                {imageUrl ? (
+                  <img
+                    src={imageUrl}
+                    alt="Website showcase"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = 'https://placehold.co/600x800/4F46E5/FFFFFF?text=Your+Website';
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-indigo-900 to-purple-800 flex items-center justify-center">
+                    <span className="text-white text-center p-4">Upload a screenshot or AI visual</span>
                   </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-blue-900/20 to-transparent"></div>
+              </div>
+
+              {/* Logo badge */}
+              <div className="absolute top-4 right-4 bg-white rounded-lg p-2 shadow-lg">
+                <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-xl">W</span>
                 </div>
-
-                {/* Info */}
-                <div className="p-5">
-                  <h3 className="text-xl font-bold text-white mb-1">{template.name}</h3>
-                  <p className="text-gray-400 text-sm mb-4">{template.description}</p>
-
-                  {adminMode && (
-                    <div className="space-y-3">
-                      {!imageUrl && (
-                        <div className="text-xs text-indigo-300 bg-indigo-900/30 p-2 rounded">
-                          {template.prompt}
-                        </div>
-                      )}
-
-                      <div className="flex flex-wrap gap-2">
-                        {!imageUrl && (
-                          <button
-                            onClick={() => copyPrompt(template.prompt, template.id)}
-                            className="flex items-center gap-1 text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded"
-                          >
-                            <Copy className="h-3 w-3" />
-                            {copiedId === template.id ? 'Copied!' : 'Copy Prompt'}
-                          </button>
-                        )}
-                        <label className="flex items-center gap-1 text-xs bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-90 px-2 py-1 rounded cursor-pointer">
-                          <Upload className="h-3 w-3" />
-                          {uploading === template.id ? 'Uploading…' : 'Upload Poster'}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleUpload(e, template.id)}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  )}
-
-                  {!adminMode && (
-                    <Link
-                      href="/get-started"
-                      className="mt-4 w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium py-2 rounded-lg hover:opacity-90"
-                    >
-                      <ArrowDownToLine className="h-4 w-4" />
-                      Generate This Poster
-                    </Link>
-                  )}
-                </div>
-              </motion.div>
-            );
-          })}
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* CTA */}
-        {!adminMode && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="text-center mt-20"
-          >
-            <p className="text-indigo-200 mb-6">Need custom posters for your business?</p>
-            <Link
-              href="/get-started"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-gray-900 font-bold rounded-xl hover:shadow-lg"
-            >
-              Get Your Posters Made — $69
-              <ArrowDownToLine className="h-4 w-4" />
-            </Link>
-          </motion.div>
-        )}
-
-        {/* Admin Badge */}
-        <AnimatePresence>
-          {adminMode && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="fixed bottom-6 right-6 bg-gradient-to-r from-indigo-600 to-purple-700 text-white px-4 py-2 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 backdrop-blur-sm"
-            >
-              <Palette className="h-4 w-4" />
-              Poster Studio (Admin)
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Corner dots */}
+        <div className="absolute top-4 left-4 flex gap-1">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="w-2 h-2 bg-white rounded-full"></div>
+          ))}
+        </div>
+        <div className="absolute top-4 right-4 flex gap-1">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="w-2 h-2 bg-white rounded-full"></div>
+          ))}
+        </div>
       </div>
+
+      {/* Admin Controls (overlay at bottom) */}
+      {adminMode && (
+        <div className="fixed bottom-0 left-0 right-0 bg-gray-900/90 backdrop-blur-md text-white p-4 border-t border-purple-600 z-50">
+          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between text-sm">
+            
+            <div className="flex items-center gap-2">
+              <Upload className="h-4 w-4 text-purple-300" />
+              <label className="cursor-pointer bg-purple-700 hover:bg-purple-600 px-3 py-1.5 rounded text-xs">
+                {uploading ? 'Uploading…' : 'Upload Image'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
+            <div className="flex-1 max-w-md">
+              <div className="flex gap-1 items-center">
+                <span className="text-gray-300">Prompt:</span>
+                <input
+                  type="text"
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  className="bg-gray-800 text-white text-xs px-2 py-1 rounded w-full"
+                />
+                <button
+                  onClick={copyPrompt}
+                  className="text-gray-400 hover:text-white"
+                >
+                  {copied ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="text-yellow-300 text-xs font-semibold">✏️ Admin Mode — edit & screenshot</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
