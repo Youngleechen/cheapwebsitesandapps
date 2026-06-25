@@ -39,7 +39,7 @@ export default function PricingPage() {
       name: 'Quick Launch',
       price: 69,
       period: 'one-time',
-      description: 'Professional 5-page website — live in 2 days!',
+      description: 'Professional 5-page website — live in 24 hours!',
       features: [
         '5 responsive pages (Home, About, Services, Portfolio, Contact)',
         'Mobile-friendly & fast loading',
@@ -167,7 +167,7 @@ export default function PricingPage() {
               transition={{ delay: 0.4, duration: 0.6 }}
               className="text-xl text-indigo-100/90 mb-10 max-w-3xl mx-auto leading-relaxed"
             >
-              No subscriptions. No hidden fees. Just a fast, beautiful website — ready in 2 days.
+              No subscriptions. No hidden fees. Just a fast, beautiful website — ready in 24 hours.
             </motion.p>
             
             <motion.div
